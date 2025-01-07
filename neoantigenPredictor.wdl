@@ -15,7 +15,7 @@ workflow neoantigenPredictor {
     Array[File] HLACalls
     VariantCalls DNAVariantCalls
     VariantCalls RNAVariantCalls
-    File Expression
+    File RNAAbundance
     String reference = "hg38"
   }
 
@@ -38,7 +38,7 @@ workflow neoantigenPredictor {
   }
   
   output {
-    File NeoAntigenPredictions = format4PCGR.vcfout
+    File NeoAntigenPredictions = format2pcgr.vcfout
   }
 
   meta {
@@ -59,37 +59,60 @@ workflow neoantigenPredictor {
     }
   }
 
-  
-  call format4PCGR {
+  ### prepare for PCGR by adding in required INFO fields : TDP,TVAF,NDP,NVAF
+  call format2pcgr {
     input:
 	   vcfin = DNAVariantCalls["vcf"]
   }
+
+
+  ### generate Deciles from the formatted vcf file
+  call vafDeciles {
+    input: vcf= format2pcgr.vcfout
+  }
+
+  ### call the PCGR software to determine which variants to keep as candidate sites
   call PCGR {
     input:
-      vcf = format4PCGR.vcfout,
-      vcfIndex = format4PCGR.vcfoutIndex	   
+      vcf = format2pcgr.vcfout,
+      vcfIndex = format2pcgr.vcfoutIndex	   
+ }
+
+
+ call vepAnnotate {
+    input:
+      vcf = PCGR.candidateCalls,
+      refFasta = resources[reference].refFasta
   }
 
-  call vafDeciles {
-    input: vcf= DNAVariantCalls["vcf"]
+  call getPeptides {
+    input: 
+      vcf = vepAnnotate.annotatedCandidateCalls
   }
 
-#  call VEPAnnotated {
-#    input:
-#  }
+  call formatCalls {
+    input:
+      peptides = getPeptides.peptides,
+      vcf = vepAnnotate.annotatedCandidateCalls
+  }
 
-#  call pVAC {
-#    input:
-#  }
-
-#  call VariantsWithPeptides {
-#    input:
-#  }
-
-#  call ExpressionDeciles {
-#    input:
-#
-#  }
+  call ExpressionDeciles {
+    input:
+      tsv = RNAAbundance
+  }
+  
+  call rnaseqVariants {
+    input:
+      vcf = RNAVariantCalls["vcf"]
+  }
+  
+  call mergePredictorInputs {
+     input:
+       variants_peptides = formatCalls.tsv,
+       variant_deciles = vafDeciles.deciles,
+       expression_deciles = ExpressionDeciles.deciles,
+       rnaseq_variants = rnaseqVariants.tsv
+  }
  
 #  call Predict {
 #    input:
@@ -100,47 +123,246 @@ workflow neoantigenPredictor {
 }
 
 
-task vafDeciles{
+task predict{
+  input{
+    File xls
+    File hla
+    String modules = "sb-neoantigen-models/1.0.0" 
+    Int jobMemory = 6
+    Int timeout = 20	  	
+  }
+  
+  command<<<
+  module purge
+  module load sb-neoantigen-models/1.0.0
+
+  hla_list=`cat ~{hla}`
+
+  python $SB_NEOANTIGEN_MODELS_ROOT/src/GenerateScores.py ~{xlsx} $hla_llist
+
+  >>>
+}
+
+
+task mergePredictorInputs{
+   input {
+     File variants_peptides
+     File variant_deciles
+     File expression_deciles
+     File rnaseq_variants
+     String modules = "neopipe/1.0.0"
+     Int jobMemory = 6
+     Int timeout = 20	  
+   }
+   
+   command<<<
+   module purge
+   module use /.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/module_development/local/gsi/modulator/modulefiles/Ubuntu20.04
+   module load neopipe/1.0.0
+
+   R --vanilla --args ~{variants_peptides} ~{variant_deciles} ~{expression_deciles} ~{rnaseq_variants} <<RCODE
+   library(writexl)
+   args <- commandArgs(trailingOnly = TRUE)
+   
+   vafPeptides=read.csv(args[1], header=T, sep="\t", stringsAsFactors=F)
+   vafDeciles=read.csv(args[2], header=T, sep="\t", stringsAsFactors=F)
+   colnames(vafDeciles)[ncol(vafDeciles)]="vaf_decile"
+   expressionDeciles=read.csv(args[3], header=T, sep="\t", stringsAsFactors=F)
+   colnames(expressionDeciles)[ncol(expressionDeciles)]="expression_decile"
+   variantsRNASeq=read.csv(args[4], header=F, sep="\t", stringsAsFactors=F)
+   colnames(variantsRNASeq)=c("chr","pos","ref","alt","variant_in_rna")
+
+   m=merge(vafPeptides,vafDeciles,by=c("chr","pos","ref","alt"), all.x=TRUE)
+   m=merge(m,expressionDeciles,by.x="ensembl_id",by.y="gene_id",all.x=TRUE)
+   m$expression_decile[is.na(m$expression_decile)]=1
+   m=merge(m,variantsRNASeq, by=c("chr","pos","ref","alt"), all.x=TRUE)
+   m$variant_in_rna[is.na(m$variant_in_rna)]=0
+
+   # Write in tsv table
+   write.table(m, "ID.output.merged.tsv", quote=F, row.names=F, sep="\t")
+   # Format for .xlsx input
+   df=data.frame(paste(m\$chr,m\$pos,m\$ref,m\$alt,sep=";"),m\$wt_peptides,m\$mt_peptides,m\$vaf_decile,m\$expression_decile,m\$variant_in_rna)
+   colnames(df)=c("Unique identifier","Wt nmer","Mut nmer","Exome VAF decile","Gene expression decile","Present in RNA-seq data")
+   write_xlsx(df, "ID.output.merged.xlsx")
+   RCODE
+   >>>  
+
+  runtime {
+    memory:  "~{jobMemory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+  output {
+    File tsv = "ID.output.merged.tsv"
+    File xlsx = "ID.output.merged.xlsx"
+  }
+
+}
+
+
+task rnaseqVariants{
   input {
     File vcf
     String modules = "bcftools/1.9"
     Int jobMemory = 6
     Int timeout = 20
   }
-  
   command<<<
-  module load bcftools
-  ## extract relevant fields from the vcf records
-  bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%TVAF\n' ~{vcf} > ID.all_variants_vaf.tsv
-  
-  ## generated deciles with R code
-  R --vanilla <<< RCODE
-  library(dplyr)
+    module purge
+    module load bcftools/1.9
+    bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t1\n' ~{vcf} > ID.rnaseq_variants.tsv
+    >>>  
 
-  # Function to calculate deciles and output results
-  calculate_deciles <- function(file_path) {
-    # Read the file
-    data <- read.delim(file_path, header = FALSE, sep = "\t", col.names = c("Column1", "Column2", "Column3", "Column4", "Column5"))
-  
-    # Standardize the 5th column
-    standardized_col <- scale(data$Column5)
-  
-    # Calculate deciles
-    deciles <- quantile(standardized_col, probs = seq(0, 1, 0.1))
-    #print(head(data))
-    # Output results
-    output <- data.frame(data[, 1:5], Deciles = cut(standardized_col, breaks = deciles, labels = FALSE, include.lowest = TRUE))
-    return(output)
+  runtime {
+    memory:  "~{jobMemory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+  output {
+    File tsv = "ID.rnaseq_variants.tsv"
+  }
+}
+
+
+task formatCalls{
+  input {
+    File peptides
+    File vcf
+    String modules = "bcftools/1.9"
+    Int jobMemory = 6
+    Int timeout = 20
   }
   
-  # Call the function on the selected file
-  output <- calculate_deciles("ID.all_variants_vaf.tsv")
-  
-  colnames(output) <- c("chr", "pos", "ref", "alt", "vaf", "decile")
 
-  # Save the output to a new file in the same directory
-  output_file <- "ID.deciles.tsv"
-  write.table(output, file = output_file, sep = "\t", row.names = FALSE, quote = FALSE)
+  command<<<
+    module purge
+    module load bcftools/1.9
+    
+
+    python3 <<CODE
+    import re
+    import os
+
+    fout = open("ID.candidateCalls.tsv","w")
+    output_fields=["chr","pos","rs_id","ref","alt","type","callers","tumor_dp","normal_dp","tumor_vaf","normal_vaf","consequence","impact","gene","ensembl_id","transcript_id","biotype","nuc_change","aa_change","cdna_pos","cds_pos","protein_pos","amino_acids","codons","wt_peptides","mt_peptides"]
+    print(*output_fields,sep="\t",file=fout)
+    
+    ## load and catalogue the peptides
+    peptides={}
+    with open("~{peptides}") as pfile:
+      for line in pfile:
+        line=line.rstrip("\n")
+        WTid,WT_peptide,MTid,MT_peptide=line.split("\t")
+        d=dict(zip(["prefix","ordinal","gene","tid0","tid1","type","change"],WTid.split(".")))
+        d['wt_peptide']=WT_peptide
+        d['mt_peptide']=MT_peptide
+        d['transcript_id']=d['tid0'] + "." +d['tid1']
+        results=re.search("(\d+)(.*)",d['change'])
+        d['amino_acids']=results[2]
+        d['protein_pos']=results[1]
+        key="|".join([d[x] for x in ['gene','transcript_id','protein_pos','amino_acids']])
+        peptides[key]=d
+
+      #### keys/fields of interst
+      info_keys=["CHROM","POS","ID","REF","ALT","TYPE","CALLERS","TDP","NDP","TVAF","NVAF"]
+      csq_keys=["Consequence","IMPACT","SYMBOL","Gene","Feature","BIOTYPE","HGVSc","HGVSp","cDNA_position","CDS_position","Protein_position","Amino_acids","Codons","wt_peptide","mt_peptide"]
+
+      ### get CSQ fields from the header
+      headers=os.popen('bcftools view -h "~{vcf}"').readlines()
+      for header in headers:
+        if "##INFO" in header:
+          if "ID=CSQ" in header:
+            CSQ_fields_string=re.search("Format: (.*)\"",header)
+            CSQ_fields=CSQ_fields_string[1].split("|")
+
+      ### get required fields from each record
+      recs=os.popen('bcftools query -f "%CHROM\t%POS\t%ID\t%REF\t%ALT\t%TYPE\t%CALLERS\t%TDP\t%NDP\t%TVAF\t%NVAF\t%CSQ\n" "~{vcf}"').readlines()
+      for rec in recs:
+        rec=rec.rstrip("\n")    
+        ### get the values for this record and store in info_dict
+        v=rec.split("\t")
+        info_dict=dict(zip(info_keys + ["CSQ"],v))
+
+        ### get the values for the CSQ part of the record, store in csq_dict
+        v=info_dict['CSQ'].split("|")
+        csq_dict=dict(zip(CSQ_fields,v))
+
+        ### for a key for the peptide dictionary
+        peptide_key="|".join([csq_dict[x] for x in ['SYMBOL','Feature','Protein_position','Amino_acids']])
+
+        ### print out the record only if the key is in the peptide dictionary 
+        if peptide_key in peptides:
+           csq_dict['wt_peptide']=peptides[peptide_key]['wt_peptide']
+           csq_dict['mt_peptide']=peptides[peptide_key]['mt_peptide']
+           ### get the required info and csq values (including the peptides), and print to the output file
+           info_values=[info_dict[x] for x in info_keys]
+           csq_values =[csq_dict[x] for x in csq_keys] 
+           all_values=info_values + csq_values
+           print(*all_values,sep="\t",file=fout)
+
+      fout.close()
+    CODE
+
+
+    
+    >>>  
+
+  runtime {
+    memory:  "~{jobMemory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+  output {
+    File tsv = "ID.candidateCalls.tsv"
+  }
+}
+
+
+
+task ExpressionDeciles{
+  input {
+    File tsv
+    String modules = "neopipe/1.0.0"
+    Int jobMemory = 6
+    Int timeout = 20
+  }
+  
+  command<<<
+  module purge
+  module use /.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/module_development/local/gsi/modulator/modulefiles/Ubuntu20.04
+  module load neopipe/1.0.0
+
+  ## convert abundance to gene level
+  R --vanilla --args ~{tsv} <<RCODE
+  #library(rhdf5)
+  library(tximport)
+  args <- commandArgs(trailingOnly = TRUE)
+  
+  ### abundance of transcripts is conferted to gene level, with genes represented by multiple transcripts
+  ### see https://bioconductor.org/packages/release/bioc/html/tximport.html
+  ### parameters include the expression caller (eg kallisto), which aligns to the expected format
+  ### paremeters include a mapping file of transcript IDs to gene IDs (tx2gene)
+  tx2gene_file<- "/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPrediction/reffiles/Homo_sapiens.GRCh38.Ensembl104.tx2gene"
+  tx2gene=read.delim(tx2gene_file, as.is=T)
+  df <- as.data.frame(tximport(args[1],type = "kallisto", tx2gene = tx2gene))
+  
+  #write.table(txi.abundance, "gene_abundance.tsv", sep="\t", col.names=T, row.names=F, quote=F)
+  
+  ### separate out abundance = 0 genes, do not use for deciles
+  df0<-df[df\$abundance ==0,]
+  df1<-df[df\$abundance !=0,]
+  
+  standardized_col <- scale(df1\$abundance)
+  deciles <- quantile(standardized_col,probs=seq(0,1,0.1))
+  
+  ### set quantiles for abundance = 0 genes to 1, apply quantiles to abundance >0 genes
+  output0 <- data.frame(gene_id=rownames(df0),abundance_TPM=df0\$abundance,deciles=1)
+  output1 <- data.frame(gene_id=rownames(df1),abundance_TPM=df1\$abundance,deciles=cut(standardized_col, breaks = deciles, labels = FALSE, include.lowest = TRUE))
+  ## combine output
+  output <- rbind(output1,output0)
+  output[order(output\$gene_id),]
+  output_fname<-"ID.expression_deciles_kallisto50_ensembl104.tsv"
+  write.table(output, file = output_fname, sep = "\t", row.names = FALSE, quote=F)
   
   RCODE
   >>>  
@@ -151,12 +373,138 @@ task vafDeciles{
     timeout: "~{timeout}"
   }
   output {
-    File deciles = "ID.deciles.txt"
+    File deciles = "ID.expression_deciles_kallisto50_ensembl104.tsv"
   }
 }
 
 
-task format4PCGR{
+
+task getPeptides {
+  input{
+    File vcf
+    String modules = "pvactools/4.3.0"
+    Int jobMemory = 6
+    Int timeout = 20
+   }
+   
+   command<<<
+   module purge
+   module load pvactools/4.3.0
+
+   pvacseq generate_protein_fasta \
+   -s TUMOR \
+   -d 12 \
+   ~{vcf} 12 ID.peptides.fa
+   
+   ## convert to single line per site with WTid,WTseq,MTid,MTseq
+   cat ID.peptides.fa | paste - - - - > ID.peptides.0.txt
+   ## keep only records where MT != WT peptide
+   cat ID.peptides.0.txt | awk '{if($2 != $4) print}' > ID.peptides.1.txt
+   ## order by numeric identifier
+   cat ID.peptides.1.txt | sort -t . -k2 -g > ID.peptides.2.txt
+   ## keep only if unique and peptide length == 25
+   cat ID.peptides.2.txt | awk -F'\t' '!seen[$2,$4]++ && length($2) >= 25 && length($4) >= 25' > ID.peptides.txt
+
+
+   >>>
+
+  runtime {
+    memory:  "~{jobMemory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+  output {
+    File peptides = "ID.peptides.txt"
+  }
+}
+
+task vepAnnotate{
+  input{
+    File vcf
+    String refFasta
+    String modules = "vep/112.0 pcgr/2.0.3"
+    Int jobMemory = 6
+    Int timeout = 20
+   }
+   
+   
+   String plugins="/.mounts/labs/gsi/src/pvactools/plugins/"
+   command<<<
+   module purge
+   module load vep/112.0 pcgr/2.0.3 hg38/p12
+   
+   vep \
+   --input_file ~{vcf} \
+   --output_file ID.vep.vcf \
+   --format vcf --vcf --symbol --terms SO --tsl \
+   --hgvs --fasta ~{refFasta} \
+   --offline \
+   --cache --dir_cache $VEP_DIR --cache_version 112 \
+   --plugin Frameshift --plugin Wildtype \
+   --dir_plugins ~{plugins} --pick --transcript_version \
+   --force_overwrite
+   >>>
+
+  runtime {
+    memory:  "~{jobMemory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+  output {
+    File annotatedCandidateCalls = "ID.vep.vcf"
+  }
+}
+
+task vafDeciles{
+  input {
+    File vcf
+    String modules = "neopipe/1.0.0 bcftools/1.9"
+    Int jobMemory = 6
+    Int timeout = 20
+  }
+  
+  command<<<
+  module purge
+  module load neopipe/1.0.0 bcftools/1.9
+  ## extract relevant fields from the vcf records
+  bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%TVAF\n' ~{vcf} > ID.all_variants_vaf.tsv
+  
+  ## generated deciles with R code
+  R --vanilla <<RCODE
+  library(dplyr)
+  
+  fin="ID.all_variants_vaf.tsv"
+  data <- read.delim(fin, header = FALSE, sep = "\t", col.names = c("chr", "pos", "ref", "alt", "vaf"))
+
+  # Standardize the vaf column
+  standardized_col <- scale(data\$vaf)
+  
+  # Calculate deciles
+  deciles <- quantile(standardized_col, probs = seq(0, 1, 0.1))
+
+  # Output results
+  output <- data.frame(data[, 1:5], decile = cut(standardized_col, breaks = deciles, labels = FALSE, include.lowest = TRUE))
+  
+  # Save the output to a new file in the same directory
+  fout <- "ID.deciles.tsv"
+  ### this seens to writes out the data without a headerline...is this necessary, or maybe it is done purposely
+  write.table(output, file = fout, sep = "\t", row.names = FALSE, quote = FALSE)
+  
+  RCODE
+  >>>  
+
+  runtime {
+    memory:  "~{jobMemory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+  output {
+    File deciles = "ID.deciles.tsv"
+  }
+}
+
+
+task format2pcgr{
   input {
     File vcfin
     String modules = "neopipe/1.0.0 bcftools/1.9"
@@ -166,6 +514,7 @@ task format4PCGR{
   parameter_meta {
   }
   command <<<
+  module purge
   module load neopipe/1.0.0 bcftools/1.9
   
   python3 /.mounts/labs/gsiprojects/gsi/gsiusers/hdriver/Scripting/NeoAntigen/Install_Mugqic/mugqic_tools-2.12.8.tar.gz/python-tools/format2pcgr.py \
@@ -204,6 +553,7 @@ task PCGR{
   parameter_meta {
   }
   command <<<
+  module purge
   module load pcgr/2.0.3
   set -euxo pipefail
   
