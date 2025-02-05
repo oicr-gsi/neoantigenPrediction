@@ -10,13 +10,19 @@ struct VariantCalls {
   File vcfIndex
 }
 
+struct HLACalls {
+  Array[File] files
+  Array[String] callers
+}
+
 workflow neoantigenPredictor {
   input {
-    Array[File] HLACalls
+    HLACalls HLAFiles
     VariantCalls DNAVariantCalls
     VariantCalls RNAVariantCalls
     File RNAAbundance
     String reference = "hg38"
+    String outputFilePrefix
   }
 
   parameter_meta {
@@ -38,7 +44,8 @@ workflow neoantigenPredictor {
   }
   
   output {
-    File NeoAntigenPredictions = format2pcgr.vcfout
+    File NeoAntigenPredictions = mergePredictorOutputs.xlsx
+    File NeoAntigenNmers = mergePredictorOutputs.tsv
   }
 
   meta {
@@ -59,16 +66,24 @@ workflow neoantigenPredictor {
     }
   }
 
+  ### parse the HLA outputs to construct a string of HLAs
+  call extractHLAs {
+    input:
+      hlafiles = HLAFiles["files"],
+      hlacallers = HLAFiles["callers"]
+  }
+  
   ### prepare for PCGR by adding in required INFO fields : TDP,TVAF,NDP,NVAF
   call format2pcgr {
     input:
-	   vcfin = DNAVariantCalls["vcf"]
+      vcfin = DNAVariantCalls["vcf"]
   }
 
 
   ### generate Deciles from the formatted vcf file
   call vafDeciles {
-    input: vcf= format2pcgr.vcfout
+    input: 
+      vcf= format2pcgr.vcfout
   }
 
   ### call the PCGR software to determine which variants to keep as candidate sites
@@ -114,33 +129,299 @@ workflow neoantigenPredictor {
        rnaseq_variants = rnaseqVariants.tsv
   }
  
-#  call Predict {
-#    input:
-#  }
-
-
+ 
+ call chunkPredictorInputFile {
+    input:
+      xls = mergePredictorInputs.xls,
+      chunksize = 30
+ }
+ 
+ scatter(predictorInput in chunkPredictorInputFile.predictorInputs){
+    call predict {
+       input:
+         xls = predictorInput,
+         hlas = extractHLAs.hlas
+    }
+ }
+ 
+ call mergePredictorOutputs {
+   input:
+     predictorOutputs = predict.predictorOutput,
+     predictorInputTSV = mergePredictorInputs.tsv,
+     outputFilePrefix = outputFilePrefix
+ }
 
 }
+
+
+
+task mergePredictorOutputs {
+   input{
+     Array[File] predictorOutputs
+     File predictorInputTSV
+     String outputFilePrefix
+     String modules = "neopipe/1.0.0 sb-neoantigen-models/1.0.0"
+     Int jobMemory = 6
+     Int timeout = 20	
+   }
+  command<<<
+
+  
+  python3 <<CODE
+  import sys
+  import pandas as pd
+  import numpy as np
+
+  predictorOutputsString = "~{sep=" " predictorOutputs}"
+  predictorOutputs=predictorOutputsString.split()
+  data={}
+  for ds in ["InputData","NmersScored","MmpsScored"]:
+      for predictorOutput in predictorOutputs:
+          df=pd.read_excel(predictorOutput,sheet_name=ds)
+          if ds not in data:
+              data[ds]=df
+          else:
+              data[ds]=pd.concat([data[ds],df],axis=0)
+
+  writer = pd.ExcelWriter('~{outputFilePrefix}_neoantigenPredictions.xlsx', engine='xlsxwriter')
+  data["InputData"].to_excel(writer, sheet_name='InputData', index = False)
+  data["NmersScored"].to_excel(writer, sheet_name='NmersScored', index = False)
+  data["MmpsScored"].to_excel(writer, sheet_name='MmpsScored', index = False)
+  writer.save()
+  
+  
+  #### annotation of the predictorInputTSV with information from the excel file
+  ####### NmersScored has 1 record per Unique identifier
+  ####### MmpsScores had multiple records per Unique identifer, across a range of MMP model score
+  ####### merge the two, matching each of the NmersScored mmp scores to the MMP model score, concatenating values if there are multiple matches
+  df_nmers = data["NmersScored"]
+  df_mmps = data["MmpsScored"]
+
+  ### to capture the list of lists, for conversion to a dataframe
+  list_mmps_match=[]
+  ### interate across the nmers row by row
+  for index,row in df_nmers.iterrows():
+    ### list of values to ad to the list_mmps_match
+    match=[]
+    uid=row['Unique identifier']    
+    match.append(uid)
+    
+    ## adjust precision
+    score1=round(row["mmp score 1"],7)
+    score2=round(row["mmp score 2"],7)
+
+    for score in [score1,score2]:
+      ## match on uid and score
+      mmps_rows = df_mmps[ (df_mmps['Unique identifier'] == uid ) & (round(df_mmps['MMP model score'],7) == score) ]
+      ### if multiple rows, concatenate the values
+      mutant_peptides=";".join(mmps_rows['Mutant peptide'])
+      match.append(mutant_peptides)
+      hlas=";".join(mmps_rows['HLA'])
+      match.append(hlas)
+
+    ### add to the list
+    list_mmps_match.append(match)
+
+  ## convert the list to a dataframe
+  df_mmps_match=pd.DataFrame(list_mmps_match, columns=["Unique identifier","mmpScore1Pep","mmpScore1HLA","mmpScore2Pep","mmpScore2HLA"])
+
+  ### merge the new columns to df_nmers
+  df_nmers_extended=pd.merge(df_nmers,df_mmps_match,on="Unique identifier")
+
+  ### split the Unique identifier to columns, for the final merge, adjust the dtype for pos for merging
+  df_nmers_extended[["chr","pos","ref","alt"]]=df_nmers_extended['Unique identifier'].str.split(";",expand=True,)
+  df_nmers_extended=df_nmers_extended.drop(["Unique identifier"],axis=1)
+  df_nmers_extended["pos"]=df_nmers_extended["pos"].astype('int64')
+
+  ### load the tsv file
+  df_tsv=pd.read_csv("~{predictorInputTSV}",sep="\t")
+  ### merge in the nmer information
+  df_tsv_extended=pd.merge(df_tsv,df_nmers_extended,on=["chr","pos","ref","alt"])
+
+  df_tsv_extended.to_csv("~{outputFilePrefix}_neoantigenPredictions.tsv",index=False,sep="\t")  
+  
+  CODE
+  >>>   
+
+
+  runtime {
+    memory:  "~{jobMemory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+   
+   output {
+     File xlsx = "~{outputFilePrefix}_neoantigenPredictions.xlsx"
+     File tsv =  "~{outputFilePrefix}_neoantigenPredictions.tsv"
+   }
+}
+
+
+task chunkPredictorInputFile {
+   input{
+     File xls
+     Int chunksize
+     String modules = "neopipe/1.0.0 sb-neoantigen-models/1.0.0"
+     Int jobMemory = 6
+     Int timeout = 20	
+   }
+
+  command<<<
+  
+  python3 <<CODE
+  import sys
+  import pandas as pd
+  import numpy as np
+  import os
+
+
+  
+  df=pd.read_excel("~{xls}")
+  rowcount=len(df)
+  #### need to round this appropriate
+  chunks=int(np.ceil(rowcount/~{chunksize}))
+  dfs=np.array_split(df,chunks)
+
+  chunk=0
+  for df in dfs:
+      chunk = chunk + 1
+      ## this function appears to require xlsx extension, but i need to use xls extension for the predictor
+      tmpfn="predict_input" + str(chunk) + ".xlsx"
+      df.to_excel(tmpfn,index=False)
+      os.rename("predict_input" + str(chunk) + ".xlsx", "predict_input" + str(chunk) + ".xls")
+     
+  CODE
+  >>>
+
+  runtime {
+    memory:  "~{jobMemory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+
+  output {
+    Array[File] predictorInputs = glob("predict_input*.xls")
+  } 
+}
+
+
+
+
+task extractHLAs{
+  input{
+    Array[File] hlafiles
+    Array[String] hlacallers
+    String modules = "neopipe/1.0.0" 
+    Int jobMemory = 6
+    Int timeout = 20	
+  }
+  command<<<
+  python3 <<CODE
+  import pandas as pd
+  
+  files="~{sep=" " hlafiles}".split()
+  callers="~{sep=" " hlacallers}".split()
+  
+  ### this code will extract top HLAs from the various outputs, and store in a common format
+  hlas=[]
+  for file in files:
+    caller=callers.pop(0)
+    if caller == "t1k":
+      ### use the top 3 alleles (A,B,C), and show the HLAGene Family (col1, 5th character, A,B or C), and the first and second HLA Allele names (col 3,6)
+      with open(file) as f:
+        lines=f.readlines()[0:3]
+        for line in lines:
+          fields=line.replace("*","").split()
+          ## get the gene HLA-GENE* as a single character, A,B or C, a class I HLA
+          hla_gene=fields[0][4:]
+    
+          ## limit HLA codes to Field 1 and 2, removing everything after (split on :, then join the first two fields)
+          allele1=":".join(fields[2].split(":")[0:2])
+          allele2=":".join(fields[5].split(":")[0:2])
+          hlas.append([hla_gene,allele1])
+          hlas.append([hla_gene,allele2])
+
+    elif caller == "optitype":
+      ### A,B and C Alleles are all on one line in columns 2-7 (A1,A2,B1,B2,C1,C2)
+      with open(file) as f:
+        lines=f.readlines()
+        fields=lines[1].replace("*","").split()
+        hlas.append(["A","HLA-" + fields[1]])
+        hlas.append(["A","HLA-" + fields[2]])
+        hlas.append(["B","HLA-" + fields[3]])
+        hlas.append(["B","HLA-" + fields[4]])
+        hlas.append(["C","HLA-" + fields[5]])
+        hlas.append(["C","HLA-" + fields[6]])
+    else:
+      print("unknown caller " + caller)
+      quit()
+
+  ### convert to data frame and get counts and sort by Count, then alphabetically by the HLA
+  df = pd.DataFrame(hlas,columns=['Gene','HLA'])
+  dfcounts = df.groupby(['Gene','HLA']).size().reset_index(name='Count')
+  dfcounts = dfcounts.sort_values(['Gene', 'Count', "HLA"], ascending = [True, False,True])
+  
+  ### collect final selection to list
+  hlas=[]
+  for gene in dfcounts["Gene"].unique():
+    ## get the top 2 Genes, if only one has been identified, use it twice in the final list
+    dff=dfcounts[dfcounts["Gene"]==gene][0:2]
+    
+    hla_list=dff["HLA"].values.tolist()
+    
+    if len(hla_list)<2:
+        hla_list.extend(hla_list)
+    hlas.extend(hla_list)
+  
+ 
+  hlastring= " ".join(hlas)
+  with open("hlastring.txt","w") as hlaout:
+    hlaout.write(hlastring)
+  hlaout.close()
+  CODE
+  >>>
+
+  runtime {
+    memory:  "~{jobMemory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+  
+  output {
+    String hlas = read_string("hlastring.txt")
+  } 
+}
+
+
 
 
 task predict{
   input{
     File xls
-    File hla
+    String hlas
     String modules = "sb-neoantigen-models/1.0.0" 
     Int jobMemory = 6
     Int timeout = 20	  	
   }
   
   command<<<
-  module purge
-  module load sb-neoantigen-models/1.0.0
 
-  hla_list=`cat ~{hla}`
 
-  python $SB_NEOANTIGEN_MODELS_ROOT/src/GenerateScores.py ~{xlsx} $hla_llist
-
+  ### set up split to parallelize job
+  python $SB_NEOANTIGEN_MODELS_ROOT/src/GenerateScores.py ~{xls} ~{hlas}
+  ### set up join to join results from parallelized jobs
   >>>
+  
+  String prefix = basename(xls)
+  
+  runtime {
+    memory:  "~{jobMemory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+  output {
+    File predictorOutput = "~{prefix}_scored.xlsx"
+  }  
 }
 
 
@@ -156,9 +437,6 @@ task mergePredictorInputs{
    }
    
    command<<<
-   module purge
-   module use /.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/module_development/local/gsi/modulator/modulefiles/Ubuntu20.04
-   module load neopipe/1.0.0
 
    R --vanilla --args ~{variants_peptides} ~{variant_deciles} ~{expression_deciles} ~{rnaseq_variants} <<RCODE
    library(writexl)
@@ -183,7 +461,7 @@ task mergePredictorInputs{
    # Format for .xlsx input
    df=data.frame(paste(m\$chr,m\$pos,m\$ref,m\$alt,sep=";"),m\$wt_peptides,m\$mt_peptides,m\$vaf_decile,m\$expression_decile,m\$variant_in_rna)
    colnames(df)=c("Unique identifier","Wt nmer","Mut nmer","Exome VAF decile","Gene expression decile","Present in RNA-seq data")
-   write_xlsx(df, "ID.output.merged.xlsx")
+   write_xlsx(df, "ID.output.merged.xls")
    RCODE
    >>>  
 
@@ -194,7 +472,7 @@ task mergePredictorInputs{
   }
   output {
     File tsv = "ID.output.merged.tsv"
-    File xlsx = "ID.output.merged.xlsx"
+    File xls = "ID.output.merged.xls"
   }
 
 }
@@ -208,8 +486,6 @@ task rnaseqVariants{
     Int timeout = 20
   }
   command<<<
-    module purge
-    module load bcftools/1.9
     bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t1\n' ~{vcf} > ID.rnaseq_variants.tsv
     >>>  
 
@@ -328,9 +604,6 @@ task ExpressionDeciles{
   }
   
   command<<<
-  module purge
-  module use /.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/module_development/local/gsi/modulator/modulefiles/Ubuntu20.04
-  module load neopipe/1.0.0
 
   ## convert abundance to gene level
   R --vanilla --args ~{tsv} <<RCODE
@@ -388,8 +661,6 @@ task getPeptides {
    }
    
    command<<<
-   module purge
-   module load pvactools/4.3.0
 
    pvacseq generate_protein_fasta \
    -s TUMOR \
@@ -422,7 +693,7 @@ task vepAnnotate{
   input{
     File vcf
     String refFasta
-    String modules = "vep/112.0 pcgr/2.0.3"
+    String modules = "vep/112.0 pcgr/2.0.3 hg38/p12"
     Int jobMemory = 6
     Int timeout = 20
    }
@@ -430,8 +701,6 @@ task vepAnnotate{
    
    String plugins="/.mounts/labs/gsi/src/pvactools/plugins/"
    command<<<
-   module purge
-   module load vep/112.0 pcgr/2.0.3 hg38/p12
    
    vep \
    --input_file ~{vcf} \
@@ -464,8 +733,7 @@ task vafDeciles{
   }
   
   command<<<
-  module purge
-  module load neopipe/1.0.0 bcftools/1.9
+
   ## extract relevant fields from the vcf records
   bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%TVAF\n' ~{vcf} > ID.all_variants_vaf.tsv
   
@@ -514,8 +782,6 @@ task format2pcgr{
   parameter_meta {
   }
   command <<<
-  module purge
-  module load neopipe/1.0.0 bcftools/1.9
   
   python3 /.mounts/labs/gsiprojects/gsi/gsiusers/hdriver/Scripting/NeoAntigen/Install_Mugqic/mugqic_tools-2.12.8.tar.gz/python-tools/format2pcgr.py \
         -i ~{vcfin} \
@@ -553,8 +819,7 @@ task PCGR{
   parameter_meta {
   }
   command <<<
-  module purge
-  module load pcgr/2.0.3
+
   set -euxo pipefail
   
   mkdir pcgr
