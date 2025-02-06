@@ -1,0 +1,18 @@
+{
+  "arguments": ...,
+  "description": "...",
+  "engineArguments": {
+    "write_to_cache": false,
+    "read_from_cache": false
+  },
+  "id": "...",
+  "metadata": ...,
+  "validators": [
+     {
+      "metrics_calculate": "@CHECKOUT@/calculate.sh",
+      "metrics_compare": "@CHECKOUT@/compare.sh",
+      "output_metrics": "/.mounts/labs/gsi/testdata/myworkflow/output_metrics/....metrics",
+      "type": "script"
+     }
+   ]
+}

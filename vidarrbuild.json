@@ -1,0 +1,6 @@
+{
+    "names": [
+        "neoantigenPredictor"
+    ],
+    "wdl": "neoantigenPredictor.wdl"
+}
