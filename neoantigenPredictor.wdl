@@ -104,7 +104,9 @@ workflow neoantigenPredictor {
 
   call getPeptides {
     input: 
-      vcf = vepAnnotate.annotatedCandidateCalls
+      vcf = vepAnnotate.annotatedCandidateCalls,
+      tumorId = DNAVariantCalls["tumorId"]
+
   }
 
   call formatCalls {
@@ -653,6 +655,7 @@ task ExpressionDeciles{
 task getPeptides {
   input{
     File vcf
+    String tumorId
     String modules = "pvactools/4.3.0"
     Int jobMemory = 6
     Int timeout = 20
@@ -661,7 +664,7 @@ task getPeptides {
    command<<<
 
    pvacseq generate_protein_fasta \
-   -s TUMOR \
+   -s ~{tumorId} \
    -d 12 \
    ~{vcf} 12 ID.peptides.fa
    
