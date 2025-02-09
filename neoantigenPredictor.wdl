@@ -8,6 +8,7 @@ struct GenomeResources {
 struct VariantCalls {
   File vcf
   File vcfIndex
+  String tumorId
 }
 
 struct HLACalls {
@@ -77,6 +78,7 @@ workflow neoantigenPredictor {
   call format2pcgr {
     input:
       vcfin = DNAVariantCalls["vcf"]
+      tumorId = DNAVariantCalls["tumorId"]
   }
 
 
@@ -90,7 +92,7 @@ workflow neoantigenPredictor {
   call PCGR {
     input:
       vcf = format2pcgr.vcfout,
-      vcfIndex = format2pcgr.vcfoutIndex	   
+      vcfIndex = format2pcgr.vcfoutIndex
  }
 
 
@@ -775,6 +777,7 @@ task vafDeciles{
 task format2pcgr{
   input {
     File vcfin
+    String tumorId
     String modules = "neopipe/1.0.0 bcftools/1.9"
     Int jobMemory = 6
     Int timeout = 20
@@ -787,7 +790,7 @@ task format2pcgr{
         -i ~{vcfin} \
         -o ID.ensemble.somatic.vt.annot.2callers.TEMP.vcf.gz \
         -f 2 \
-        -t TUMOR \
+        -t ~{tumorId} \
         -v somatic \
         > format2pcgr.log 2>&1
   bcftools view -Oz -i 'TDP>=10 && TVAF>=0.05 && NDP>=10 && NVAF<=0.02' \
