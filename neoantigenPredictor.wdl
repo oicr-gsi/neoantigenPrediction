@@ -77,7 +77,7 @@ workflow neoantigenPredictor {
   ### prepare for PCGR by adding in required INFO fields : TDP,TVAF,NDP,NVAF
   call format2pcgr {
     input:
-      vcfin = DNAVariantCalls["vcf"]
+      vcfin = DNAVariantCalls["vcf"],
       tumorId = DNAVariantCalls["tumorId"]
   }
 
