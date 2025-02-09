@@ -615,7 +615,7 @@ task ExpressionDeciles{
   ### see https://bioconductor.org/packages/release/bioc/html/tximport.html
   ### parameters include the expression caller (eg kallisto), which aligns to the expected format
   ### paremeters include a mapping file of transcript IDs to gene IDs (tx2gene)
-  tx2gene_file<- "/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPrediction/reffiles/Homo_sapiens.GRCh38.Ensembl104.tx2gene"
+  tx2gene_file<- "/.mounts/labs/gsi/src/neoAntigen/Homo_sapiens.GRCh38.Ensembl104.tx2gene"
   tx2gene=read.delim(tx2gene_file, as.is=T)
   df <- as.data.frame(tximport(args[1],type = "kallisto", tx2gene = tx2gene))
   
