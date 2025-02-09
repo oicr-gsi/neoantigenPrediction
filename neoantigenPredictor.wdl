@@ -513,10 +513,6 @@ task formatCalls{
   
 
   command<<<
-    module purge
-    module load bcftools/1.9
-    
-
     python3 <<CODE
     import re
     import os
