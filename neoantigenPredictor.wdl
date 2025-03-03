@@ -8,6 +8,7 @@ struct GenomeResources {
 struct VariantCalls {
   File vcf
   File vcfIndex
+  String tumorId
 }
 
 struct HLACalls {
@@ -76,7 +77,8 @@ workflow neoantigenPredictor {
   ### prepare for PCGR by adding in required INFO fields : TDP,TVAF,NDP,NVAF
   call format2pcgr {
     input:
-      vcfin = DNAVariantCalls["vcf"]
+      vcfin = DNAVariantCalls["vcf"],
+      tumorId = DNAVariantCalls["tumorId"]
   }
 
 
@@ -90,7 +92,7 @@ workflow neoantigenPredictor {
   call PCGR {
     input:
       vcf = format2pcgr.vcfout,
-      vcfIndex = format2pcgr.vcfoutIndex	   
+      vcfIndex = format2pcgr.vcfoutIndex
  }
 
 
@@ -102,7 +104,9 @@ workflow neoantigenPredictor {
 
   call getPeptides {
     input: 
-      vcf = vepAnnotate.annotatedCandidateCalls
+      vcf = vepAnnotate.annotatedCandidateCalls,
+      tumorId = DNAVariantCalls["tumorId"]
+
   }
 
   call formatCalls {
@@ -511,10 +515,6 @@ task formatCalls{
   
 
   command<<<
-    module purge
-    module load bcftools/1.9
-    
-
     python3 <<CODE
     import re
     import os
@@ -655,6 +655,7 @@ task ExpressionDeciles{
 task getPeptides {
   input{
     File vcf
+    String tumorId
     String modules = "pvactools/4.3.0"
     Int jobMemory = 6
     Int timeout = 20
@@ -663,7 +664,7 @@ task getPeptides {
    command<<<
 
    pvacseq generate_protein_fasta \
-   -s TUMOR \
+   -s ~{tumorId} \
    -d 12 \
    ~{vcf} 12 ID.peptides.fa
    
@@ -775,6 +776,7 @@ task vafDeciles{
 task format2pcgr{
   input {
     File vcfin
+    String tumorId
     String modules = "neopipe/1.0.0 bcftools/1.9"
     Int jobMemory = 6
     Int timeout = 20
@@ -787,7 +789,7 @@ task format2pcgr{
         -i ~{vcfin} \
         -o ID.ensemble.somatic.vt.annot.2callers.TEMP.vcf.gz \
         -f 2 \
-        -t TUMOR \
+        -t ~{tumorId} \
         -v somatic \
         > format2pcgr.log 2>&1
   bcftools view -Oz -i 'TDP>=10 && TVAF>=0.05 && NDP>=10 && NVAF<=0.02' \
