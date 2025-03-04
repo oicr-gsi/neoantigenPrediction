@@ -94,7 +94,7 @@
     "neoantigenPredictor.NeoAntigenPredictions": {
       "contents": [
         {
-          "outputDirectory": "@SCRATCH@/@DATE@_Workflow_neoantigenPredictor_chr1_test_@JENKINSID"
+          "outputDirectory": "@SCRATCH@/@DATE@_Workflow_neoantigenPredictor_chr1_test_@JENKINSID@"
         }
       ],
       "type": "ALL"
@@ -102,7 +102,7 @@
     "neoantigenPredictor.NeoAntigenNmers": {
       "contents": [
         {
-          "outputDirectory": "@SCRATCH@/@DATE@_Workflow_neoantigenPredictor_chr1_test_@JENKINSID"
+          "outputDirectory": "@SCRATCH@/@DATE@_Workflow_neoantigenPredictor_chr1_test_@JENKINSID@"
         }
       ],
       "type": "ALL"
