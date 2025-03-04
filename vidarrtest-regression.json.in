@@ -110,10 +110,10 @@
   },
   "validators": [
      {
-      "metrics_calculate": "@CHECKOUT@/calculate.sh",
-      "metrics_compare": "@CHECKOUT@/compare.sh",
+      "metrics_calculate": "@CHECKOUT@/tests/calculate.sh",
+      "metrics_compare": "@CHECKOUT@/tests/compare.sh",
       "output_metrics": "/.mounts/labs/gsi/testdata/neoantigenPredictor/output_metrics/chr1_test.metrics",
       "type": "script"
      }
    ]
-}
+]
