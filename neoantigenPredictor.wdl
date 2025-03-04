@@ -32,7 +32,7 @@ workflow neoantigenPredictor {
     RNAVariantCalls : "the RNA seq variant calls from Haplotype Caller"
     RNAAbundance : "the expression data in text format"
     reference : "the reference build, defaults to hg38"
-    outputFilePrefix "a prefix to add to each of the output files, generally identifying the sample being analyzed"
+    outputFilePrefix : "a prefix to add to each of the output files, generally identifying the sample being analyzed"
   }
 
   meta {
