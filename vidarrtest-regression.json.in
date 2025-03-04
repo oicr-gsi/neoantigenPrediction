@@ -84,12 +84,12 @@
    "neoantigenPredictor.vepAnnotate.timeout": null
  }, 
  "description": "chr1_test",
-  "engineArguments": {
+ "engineArguments": {
     "write_to_cache": false,
     "read_from_cache": false
-  },
-  "id": "neopredict_chr1",
-  "metadata": {
+ },
+ "id": "neopredict_chr1",
+ "metadata": {
     "neoantigenPredictor.NeoAntigenPredictions": {
       "contents": [
         {
@@ -106,8 +106,8 @@
       ],
       "type": "ALL"
     }
-  },
-  "validators": [
+ },
+ "validators": [
      {
       "metrics_calculate": "@CHECKOUT@/tests/calculate.sh",
       "metrics_compare": "@CHECKOUT@/tests/compare.sh",
