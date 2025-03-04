@@ -34,22 +34,6 @@ workflow neoantigenPredictor {
     reference : "the reference build, defaults to hg38"
     outputFilePrefix "a prefix to add to each of the output files, generally identifying the sample being analyzed"
   }
- 
-  Map[String,GenomeResources] resources = {
-    "hg19": {
-      "refModule": "hg19/p13", 
-      "refFasta": "$HG19_ROOT/hg19_random.fa"
-    },
-    "hg38": {
-      "refModule": "hg38/p12",
-      "refFasta": "$HG38_ROOT/hg38_random.fa"
-    }
-  }
-  
-  output {
-    File NeoAntigenPredictions = mergePredictorOutputs.xlsx
-    File NeoAntigenNmers = mergePredictorOutputs.tsv
-  }
 
   meta {
     author : "Lawrence Heisler"
@@ -88,6 +72,24 @@ workflow neoantigenPredictor {
       }
     }
   }
+
+  Map[String,GenomeResources] resources = {
+    "hg19": {
+      "refModule": "hg19/p13", 
+      "refFasta": "$HG19_ROOT/hg19_random.fa"
+    },
+    "hg38": {
+      "refModule": "hg38/p12",
+      "refFasta": "$HG38_ROOT/hg38_random.fa"
+    }
+  }
+  
+  output {
+    File NeoAntigenPredictions = mergePredictorOutputs.xlsx
+    File NeoAntigenNmers = mergePredictorOutputs.tsv
+  }
+
+
 
   ### parse the HLA outputs to construct a string of HLAs
   call extractHLAs {
