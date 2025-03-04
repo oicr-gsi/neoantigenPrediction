@@ -27,10 +27,12 @@ workflow neoantigenPredictor {
   }
 
   parameter_meta {
-    HLACalls : "an array of text files from all the HLA predictions"
-    VariantsCallSet : "the set of vcf files from each somatic variant callers, with the index and caller identified"
-    Expression : "the expression data in text format"
-    VariantsRNA : "the vcf files from the rna variant caller, with the index and caller identified"
+    HLAFiles : "an array of text files from all the HLA predictions with an array of the corresponding caller names"
+    DNAVariantCallls : "the ensemble/combined DNA vcf file, from multiple callers, with the index and the tumourID"
+    RNAVariantCallls : "the RNA seq variant calls from Haplotype Caller"
+    RNAAbundance : "the expression data in text format"
+    reference : "the reference build, defaults to hg38"
+    outputFilePrefix "a prefix to add to each of the output files, generally identifying the sample being analyzed"
   }
  
   Map[String,GenomeResources] resources = {
@@ -55,14 +57,34 @@ workflow neoantigenPredictor {
     description : "A workflow that will use variant calls, expression data and HLA typing to predict Neoantigens"
     dependencies : [ 
       {
-        name : "xxx",
-        url : "xxx"
+        name : "PCGR : Personal Cancer Genome Reporter, version 2.0.3",
+        url : "https://github.com/sigven/pcgr/tree/v2.0.3"
+      },
+      {
+        name : "bcftools version 1.9",
+        url : "https://github.com/samtools/bcftools"
+      },
+      {
+        name : "Variant Effect Predictor, version 112.0",
+        url : "https://github.com/Ensembl/ensembl-vep"
+      },
+      {
+        name : "pvactools version 4.3.0",
+        url : "https://github.com/griffithlab/pVACtools"
+      },
+      {
+        name : "SB_neoantigen_Models",
+        url : "https://github.com/JaredJGartner/SB_neoantigen_Models"
       }
     ]
     output_meta: {
       NeoAntigenPredictions:{
-        description: "xxx",
-        vidarr_label: "xxx"
+        description: "An xlsx file with worksheets detailing the predictions",
+        vidarr_label: "NeoAntigenPredictions"
+      },
+      NeoAntigenNmers:{
+        description: "a tsv file with the predictions",
+        vidarr_label: "NeoAntigenNmers"
       }
     }
   }

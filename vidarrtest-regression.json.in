@@ -1,11 +1,95 @@
-{
-  "arguments": ...,
-  "description": "...",
+[
+ {
+  "arguments": {
+   "neoantigenPredictor.HLAFiles":{
+    "files":[
+     "/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/DNA_N_t1k_hla_genotype.tsv",
+     "/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/DNA_T_t1k_hla_genotype.tsv",
+     "/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/RNA_T_t1k_hla_genotype.tsv",
+     "/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/DNA_N_result_optitype.tsv",
+     "/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/DNA_T_result_optitype.tsv",
+     "/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/RNA_T_result_optitype.tsv"
+    ],
+    "callers":["t1k","t1k","t1k","optitype","optitype","optitype"]
+   },
+   "neoantigenPredictor.DNAVariantCalls":{
+     "vcf":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/DNA_TN.chr1.ensemble.vcf.gz",
+     "vcfIndex":"//.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/DNA_TN.chr1.ensemble.vcf.gz.tbi"
+   },
+   "neoantigenPredictor.RNAVariantCalls":{
+     "vcf":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/RNA.chr1.g.vcf.gz",
+     "vcfIndex":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/RNA.chr1.g.vcf.gz.tbi"
+   },
+   "neoantigenPredictor.RNAAbundance":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/RNA.abundance.tsv",
+   "neoantigenPredictor.outputFilePrefix":"MoHQ-CM-1-180.chr1"
+  }
+  "neoantigenPredictor.chunkPredictorInputFile.xls": null,
+  "neoantigenPredictor.chunkPredictorInputFile.chunksize": null,
+  "neoantigenPredictor.chunkPredictorInputFile.modules": null,
+  "neoantigenPredictor.chunkPredictorInputFile.jobMemory": null,
+  "neoantigenPredictor.chunkPredictorInputFile.timeout": null,
+  "neoantigenPredictor.ExpressionDeciles.tsv": null,
+  "neoantigenPredictor.ExpressionDeciles.timeout": null,
+  "neoantigenPredictor.ExpressionDeciles.modules": null,
+  "neoantigenPredictor.ExpressionDeciles.jobMemory" :null,
+  "neoantigenPredictor.extractHLAs.hlafiles": null,
+  "neoantigenPredictor.extractHLAs.hlacallers": null,
+  "neoantigenPredictor.extractHLAs.modules": null,
+  "neoantigenPredictor.extractHLAs.jobMemory": null,
+  "neoantigenPredictor.extractHLAs.timeout": null,
+  "neoantigenPredictor.format2pcgr.vcfin": null,
+  "neoantigenPredictor.format2pcgr.modules": null,
+  "neoantigenPredictor.format2pcgr.jobMemory": null,
+  "neoantigenPredictor.format2pcgr.timeout": null,
+  "neoantigenPredictor.formatCalls.peptides": null,
+  "neoantigenPredictor.formatCalls.vcf": null,
+  "neoantigenPredictor.formatCalls.modules": null,
+  "neoantigenPredictor.formatCalls.jobMemory": null,
+  "neoantigenPredictor.formatCalls.timeout": null,
+  "neoantigenPredictor.getPeptides.vcf": null,
+  "neoantigenPredictor.getPeptides.modules": null,
+  "neoantigenPredictor.getPeptides.timeout": null,
+  "neoantigenPredictor.getPeptides.jobMemory": null,
+  "neoantigenPredictor.mergePredictorInputs.variants_peptides": null,
+   "neoantigenPredictor.mergePredictorInputs.variant_deciles": null,
+  "neoantigenPredictor.mergePredictorInputs.expression_deciles": null,
+  "neoantigenPredictor.mergePredictorInputs.rnaseq_variants": null,
+  "neoantigenPredictor.mergePredictorInputs.timeout": null,
+  "neoantigenPredictor.mergePredictorInputs.jobMemory": null,
+  "neoantigenPredictor.mergePredictorInputs.modules": null,
+  "neoantigenPredictor.mergePredictorOutputs.modules": null,
+  "neoantigenPredictor.mergePredictorOutputs.jobMemory": null,
+  "neoantigenPredictor.mergePredictorOutputs.timeout": null,
+  "neoantigenPredictor.PCGR.vcf": null,
+  "neoantigenPredictor.PCGR.vcfIndex": null,
+  "neoantigenPredictor.PCGR.modules": null,
+  "neoantigenPredictor.PCGR.jobMemory": null,
+  "neoantigenPredictor.PCGR.timeout": null,  
+  "neoantigenPredictor.predict.xls": null,
+  "neoantigenPredictor.predict.hlas": null,
+  "neoantigenPredictor.predict.modules": null,
+  "neoantigenPredictor.predict.jobMemory": null,  
+  "neoantigenPredictor.predict.timeout": null,
+  "neoantigenPredictor.rnaseqVariants.vcf": null,  
+  "neoantigenPredictor.rnaseqVariants.modules": null,
+  "neoantigenPredictor.rnaseqVariants.timeout": null,
+  "neoantigenPredictor.rnaseqVariants.jobMemory": null,
+  "neoantigenPredictor.vafDeciles.vcf": null,
+  "neoantigenPredictor.vafDeciles.modules": null,
+  "neoantigenPredictor.vafDeciles.jobMemory": null,
+  "neoantigenPredictor.vafDeciles.timeout": null,
+  "neoantigenPredictor.vepAnnotate.vcf": null,  
+  "neoantigenPredictor.vepAnnotate.refFasta": null, 
+  "neoantigenPredictor.vepAnnotate.modules": null,
+  "neoantigenPredictor.vepAnnotate.jobMemory": null,
+  "neoantigenPredictor.vepAnnotate.timeout": null
+ }, 
+ "description": "chr1 test",
   "engineArguments": {
     "write_to_cache": false,
     "read_from_cache": false
   },
-  "id": "...",
+  "id": "neopredict_chr1",
   "metadata": ...,
   "validators": [
      {
