@@ -28,8 +28,8 @@ workflow neoantigenPredictor {
 
   parameter_meta {
     HLAFiles : "an array of text files from all the HLA predictions with an array of the corresponding caller names"
-    DNAVariantCallls : "the ensemble/combined DNA vcf file, from multiple callers, with the index and the tumourID"
-    RNAVariantCallls : "the RNA seq variant calls from Haplotype Caller"
+    DNAVariantCalls : "the ensemble/combined DNA vcf file, from multiple callers, with the index and the tumourID"
+    RNAVariantCalls : "the RNA seq variant calls from Haplotype Caller"
     RNAAbundance : "the expression data in text format"
     reference : "the reference build, defaults to hg38"
     outputFilePrefix "a prefix to add to each of the output files, generally identifying the sample being analyzed"
