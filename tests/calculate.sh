@@ -5,6 +5,5 @@ set -o pipefail
 
 cd $1
 
-md5sum MoHQ-CM-1-180_neoantigenPredictions.tsv
-md5sum MoHQ-CM-1-180_neoantigenPredictions.xlsx
+md5sum *
 
