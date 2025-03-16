@@ -14,11 +14,13 @@
    },
    "neoantigenPredictor.DNAVariantCalls":{
      "vcf":{"contents":{"configuration":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/DNA_TN.chr1.ensemble.vcf.gz","externalIds":[{"id":"TEST","provider":"TEST"}]},"type":"EXTERNAL"},
-     "vcfIndex":{"contents":{"configuration":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/DNA_TN.chr1.ensemble.vcf.gz.tbi","externalIds":[{"id":"TEST","provider":"TEST"}]},"type":"EXTERNAL"}	 
+     "vcfIndex":{"contents":{"configuration":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/DNA_TN.chr1.ensemble.vcf.gz.tbi","externalIds":[{"id":"TEST","provider":"TEST"}]},"type":"EXTERNAL"},
+     "tumorId":"TUMOR"	 
    },
    "neoantigenPredictor.RNAVariantCalls":{
      "vcf":{"contents":{"configuration":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/RNA.chr1.g.vcf.gz","externalIds":[{"id":"TEST","provider":"TEST"}]},"type":"EXTERNAL"},
-     "vcfIndex":{"contents":{"configuration":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/RNA.chr1.g.vcf.gz.tbi","externalIds":[{"id":"TEST","provider":"TEST"}]},"type":"EXTERNAL"}
+     "vcfIndex":{"contents":{"configuration":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/RNA.chr1.g.vcf.gz.tbi","externalIds":[{"id":"TEST","provider":"TEST"}]},"type":"EXTERNAL"},
+     "tumorId":"MoHQ-CM-1-180.RNA"
    },
    "neoantigenPredictor.RNAAbundance":{"contents":{"configuration":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/RNA.abundance.tsv","externalIds":[{"id":"TEST","provider":"TEST"}]},"type":"EXTERNAL"},
    "neoantigenPredictor.outputFilePrefix":"MoHQ-CM-1-180.chr1",
