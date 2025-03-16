@@ -5,5 +5,5 @@ set -o pipefail
 
 cd $1
 
-md5sum *
+md5sum *.tsv
 
