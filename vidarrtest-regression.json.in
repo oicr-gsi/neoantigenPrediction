@@ -8,7 +8,7 @@
      {"contents":{"configuration":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/RNA_T_t1k_hla_genotype.tsv","externalIds":[{"id":"TEST","provider":"TEST"}]},"type":"EXTERNAL"},
      {"contents":{"configuration":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/DNA_N_result_optitype.tsv","externalIds":[{"id":"TEST","provider":"TEST"}]},"type":"EXTERNAL"},
      {"contents":{"configuration":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/DNA_T_result_optitype.tsv","externalIds":[{"id":"TEST","provider":"TEST"}]},"type":"EXTERNAL"},
-     {"contents":{"configuration":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/RNA_T_result_optitype.tsv","externalIds":[{"id":"TEST","provider":"TEST"}]},"type":"EXTERNAL"},
+     {"contents":{"configuration":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/RNA_T_result_optitype.tsv","externalIds":[{"id":"TEST","provider":"TEST"}]},"type":"EXTERNAL"}
     ],
     "callers":["t1k","t1k","t1k","optitype","optitype","optitype"]
    },
