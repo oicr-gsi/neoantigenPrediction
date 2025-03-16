@@ -1,8 +1,8 @@
 version 1.0
 
 struct GenomeResources {
-    String refModule
-    String refFasta
+  String refModule
+  String refFasta
 }
 
 struct VariantCalls {
@@ -88,67 +88,52 @@ workflow neoantigenPredictor {
     File NeoAntigenPredictions = mergePredictorOutputs.xlsx
     File NeoAntigenNmers = mergePredictorOutputs.tsv
   }
-
-
-
   ### parse the HLA outputs to construct a string of HLAs
   call extractHLAs {
     input:
-      hlafiles = HLAFiles["files"],
-      hlacallers = HLAFiles["callers"]
+      hlafiles = HLAFiles.files,
+      hlacallers = HLAFiles.callers
   }
-  
   ### prepare for PCGR by adding in required INFO fields : TDP,TVAF,NDP,NVAF
   call format2pcgr {
     input:
-      vcfin = DNAVariantCalls["vcf"],
-      tumorId = DNAVariantCalls["tumorId"]
+      vcfin = DNAVariantCalls.vcf,
+      tumorId = DNAVariantCalls.tumorId
   }
-
-
   ### generate Deciles from the formatted vcf file
   call vafDeciles {
     input: 
       vcf= format2pcgr.vcfout
   }
-
   ### call the PCGR software to determine which variants to keep as candidate sites
   call PCGR {
     input:
       vcf = format2pcgr.vcfout,
       vcfIndex = format2pcgr.vcfoutIndex
- }
-
-
+  }
  call vepAnnotate {
     input:
       vcf = PCGR.candidateCalls,
       refFasta = resources[reference].refFasta
   }
-
   call getPeptides {
     input: 
       vcf = vepAnnotate.annotatedCandidateCalls,
-      tumorId = DNAVariantCalls["tumorId"]
-
+      tumorId = DNAVariantCalls.tumorId
   }
-
   call formatCalls {
     input:
       peptides = getPeptides.peptides,
       vcf = vepAnnotate.annotatedCandidateCalls
   }
-
   call ExpressionDeciles {
     input:
       tsv = RNAAbundance
   }
-  
   call rnaseqVariants {
     input:
-      vcf = RNAVariantCalls["vcf"]
+      vcf = RNAVariantCalls.vcf
   }
-  
   call mergePredictorInputs {
      input:
        variants_peptides = formatCalls.tsv,
@@ -156,29 +141,24 @@ workflow neoantigenPredictor {
        expression_deciles = ExpressionDeciles.deciles,
        rnaseq_variants = rnaseqVariants.tsv
   }
- 
- 
- call chunkPredictorInputFile {
+  call chunkPredictorInputFile {
     input:
       xls = mergePredictorInputs.xls,
       chunksize = 30
- }
- 
- scatter(predictorInput in chunkPredictorInputFile.predictorInputs){
+  }
+  scatter(predictorInput in chunkPredictorInputFile.predictorInputs){
     call predict {
        input:
          xls = predictorInput,
          hlas = extractHLAs.hlas
     }
- }
- 
- call mergePredictorOutputs {
+  }
+  call mergePredictorOutputs {
    input:
      predictorOutputs = predict.predictorOutput,
      predictorInputTSV = mergePredictorInputs.tsv,
      outputFilePrefix = outputFilePrefix
- }
-
+  }
 }
 
 
@@ -193,8 +173,6 @@ task mergePredictorOutputs {
      Int timeout = 20	
    }
   command<<<
-
-  
   python3 <<CODE
   import sys
   import pandas as pd
@@ -419,10 +397,6 @@ task extractHLAs{
     String hlas = read_string("hlastring.txt")
   } 
 }
-
-
-
-
 task predict{
   input{
     File xls
@@ -431,10 +405,7 @@ task predict{
     Int jobMemory = 6
     Int timeout = 20	  	
   }
-  
   command<<<
-
-
   ### set up split to parallelize job
   python $SB_NEOANTIGEN_MODELS_ROOT/src/GenerateScores.py ~{xls} ~{hlas}
   ### set up join to join results from parallelized jobs
