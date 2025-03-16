@@ -23,6 +23,7 @@
      "tumorId":"MoHQ-CM-1-180.RNA"
    },
    "neoantigenPredictor.RNAAbundance":{"contents":{"configuration":"/.mounts/labs/gsiprojects/gsi/gsiusers/lheisler/WDL/dev_neoantigenPredictor/regression_tests/chr1/RNA.abundance.tsv","externalIds":[{"id":"TEST","provider":"TEST"}]},"type":"EXTERNAL"},
+   "neoantigenPredictor.reference":"hg38",
    "neoantigenPredictor.outputFilePrefix":"MoHQ-CM-1-180.chr1",
    "neoantigenPredictor.chunkPredictorInputFile.xls": null,
    "neoantigenPredictor.chunkPredictorInputFile.chunksize": null,
