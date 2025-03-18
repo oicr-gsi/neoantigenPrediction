@@ -184,7 +184,7 @@ workflow neoantigenPredictor {
 
 
 task mergePredictorOutputs {
-   input{
+   input {
      Array[File] predictorOutputs
      File predictorInputTSV
      String outputFilePrefix
@@ -192,85 +192,11 @@ task mergePredictorOutputs {
      Int jobMemory = 6
      Int timeout = 20	
    }
-  command<<<
 
-  
-  python3 <<CODE
-  import sys
-  import pandas as pd
-  import numpy as np
-
-  predictorOutputsString = "~{sep=" " predictorOutputs}"
-  predictorOutputs=predictorOutputsString.split()
-  data={}
-  for ds in ["InputData","NmersScored","MmpsScored"]:
-      for predictorOutput in predictorOutputs:
-          df=pd.read_excel(predictorOutput,sheet_name=ds)
-          if ds not in data:
-              data[ds]=df
-          else:
-              data[ds]=pd.concat([data[ds],df],axis=0)
-
-  writer = pd.ExcelWriter('~{outputFilePrefix}_neoantigenPredictions.xlsx', engine='xlsxwriter')
-  data["InputData"].to_excel(writer, sheet_name='InputData', index = False)
-  data["NmersScored"].to_excel(writer, sheet_name='NmersScored', index = False)
-  data["MmpsScored"].to_excel(writer, sheet_name='MmpsScored', index = False)
-  writer.save()
-  
-  
-  #### annotation of the predictorInputTSV with information from the excel file
-  ####### NmersScored has 1 record per Unique identifier
-  ####### MmpsScores had multiple records per Unique identifer, across a range of MMP model score
-  ####### merge the two, matching each of the NmersScored mmp scores to the MMP model score, concatenating values if there are multiple matches
-  df_nmers = data["NmersScored"]
-  df_mmps = data["MmpsScored"]
-
-  ### to capture the list of lists, for conversion to a dataframe
-  list_mmps_match=[]
-  ### interate across the nmers row by row
-  for index,row in df_nmers.iterrows():
-    ### list of values to ad to the list_mmps_match
-    match=[]
-    uid=row['Unique identifier']    
-    match.append(uid)
-    
-    ## adjust precision
-    score1=round(row["mmp score 1"],7)
-    score2=round(row["mmp score 2"],7)
-
-    for score in [score1,score2]:
-      ## match on uid and score
-      mmps_rows = df_mmps[ (df_mmps['Unique identifier'] == uid ) & (round(df_mmps['MMP model score'],7) == score) ]
-      ### if multiple rows, concatenate the values
-      mutant_peptides=";".join(mmps_rows['Mutant peptide'])
-      match.append(mutant_peptides)
-      hlas=";".join(mmps_rows['HLA'])
-      match.append(hlas)
-
-    ### add to the list
-    list_mmps_match.append(match)
-
-  ## convert the list to a dataframe
-  df_mmps_match=pd.DataFrame(list_mmps_match, columns=["Unique identifier","mmpScore1Pep","mmpScore1HLA","mmpScore2Pep","mmpScore2HLA"])
-
-  ### merge the new columns to df_nmers
-  df_nmers_extended=pd.merge(df_nmers,df_mmps_match,on="Unique identifier")
-
-  ### split the Unique identifier to columns, for the final merge, adjust the dtype for pos for merging
-  df_nmers_extended[["chr","pos","ref","alt"]]=df_nmers_extended['Unique identifier'].str.split(";",expand=True,)
-  df_nmers_extended=df_nmers_extended.drop(["Unique identifier"],axis=1)
-  df_nmers_extended["pos"]=df_nmers_extended["pos"].astype('int64')
-
-  ### load the tsv file
-  df_tsv=pd.read_csv("~{predictorInputTSV}",sep="\t")
-  ### merge in the nmer information
-  df_tsv_extended=pd.merge(df_tsv,df_nmers_extended,on=["chr","pos","ref","alt"])
-
-  df_tsv_extended.to_csv("~{outputFilePrefix}_neoantigenPredictions.tsv",index=False,sep="\t")  
-  
-  CODE
-  >>>   
-
+   command<<<
+   python scripts/merge_predictor_outputs.py "~{sep=" " predictorOutputs}" "~{predictorInputTSV}" "~{outputFilePrefix}"
+   >>>
+}  
 
   runtime {
     memory:  "~{jobMemory} GB"
@@ -295,30 +221,7 @@ task chunkPredictorInputFile {
    }
 
   command<<<
-  
-  python3 <<CODE
-  import sys
-  import pandas as pd
-  import numpy as np
-  import os
-
-
-  
-  df=pd.read_excel("~{xls}")
-  rowcount=len(df)
-  #### need to round this appropriate
-  chunks=int(np.ceil(rowcount/~{chunksize}))
-  dfs=np.array_split(df,chunks)
-
-  chunk=0
-  for df in dfs:
-      chunk = chunk + 1
-      ## this function appears to require xlsx extension, but i need to use xls extension for the predictor
-      tmpfn="predict_input" + str(chunk) + ".xlsx"
-      df.to_excel(tmpfn,index=False)
-      os.rename("predict_input" + str(chunk) + ".xlsx", "predict_input" + str(chunk) + ".xls")
-     
-  CODE
+  python3 scripts/chunkPredictorInputFile.py "~{xls}" "~{chunksize}"
   >>>
 
   runtime {
@@ -333,8 +236,6 @@ task chunkPredictorInputFile {
 }
 
 
-
-
 task extractHLAs{
   input{
     Array[File] hlafiles
@@ -344,69 +245,7 @@ task extractHLAs{
     Int timeout = 20	
   }
   command<<<
-  python3 <<CODE
-  import pandas as pd
-  
-  files="~{sep=" " hlafiles}".split()
-  callers="~{sep=" " hlacallers}".split()
-  
-  ### this code will extract top HLAs from the various outputs, and store in a common format
-  hlas=[]
-  for file in files:
-    caller=callers.pop(0)
-    if caller == "t1k":
-      ### use the top 3 alleles (A,B,C), and show the HLAGene Family (col1, 5th character, A,B or C), and the first and second HLA Allele names (col 3,6)
-      with open(file) as f:
-        lines=f.readlines()[0:3]
-        for line in lines:
-          fields=line.replace("*","").split()
-          ## get the gene HLA-GENE* as a single character, A,B or C, a class I HLA
-          hla_gene=fields[0][4:]
-    
-          ## limit HLA codes to Field 1 and 2, removing everything after (split on :, then join the first two fields)
-          allele1=":".join(fields[2].split(":")[0:2])
-          allele2=":".join(fields[5].split(":")[0:2])
-          hlas.append([hla_gene,allele1])
-          hlas.append([hla_gene,allele2])
-
-    elif caller == "optitype":
-      ### A,B and C Alleles are all on one line in columns 2-7 (A1,A2,B1,B2,C1,C2)
-      with open(file) as f:
-        lines=f.readlines()
-        fields=lines[1].replace("*","").split()
-        hlas.append(["A","HLA-" + fields[1]])
-        hlas.append(["A","HLA-" + fields[2]])
-        hlas.append(["B","HLA-" + fields[3]])
-        hlas.append(["B","HLA-" + fields[4]])
-        hlas.append(["C","HLA-" + fields[5]])
-        hlas.append(["C","HLA-" + fields[6]])
-    else:
-      print("unknown caller " + caller)
-      quit()
-
-  ### convert to data frame and get counts and sort by Count, then alphabetically by the HLA
-  df = pd.DataFrame(hlas,columns=['Gene','HLA'])
-  dfcounts = df.groupby(['Gene','HLA']).size().reset_index(name='Count')
-  dfcounts = dfcounts.sort_values(['Gene', 'Count', "HLA"], ascending = [True, False,True])
-  
-  ### collect final selection to list
-  hlas=[]
-  for gene in dfcounts["Gene"].unique():
-    ## get the top 2 Genes, if only one has been identified, use it twice in the final list
-    dff=dfcounts[dfcounts["Gene"]==gene][0:2]
-    
-    hla_list=dff["HLA"].values.tolist()
-    
-    if len(hla_list)<2:
-        hla_list.extend(hla_list)
-    hlas.extend(hla_list)
-  
- 
-  hlastring= " ".join(hlas)
-  with open("hlastring.txt","w") as hlaout:
-    hlaout.write(hlastring)
-  hlaout.close()
-  CODE
+  python3 scripts/extractHLAs.py "~{sep=" " hlafiles}" "~{sep=" " hlacallers}"
   >>>
 
   runtime {
@@ -419,7 +258,6 @@ task extractHLAs{
     String hlas = read_string("hlastring.txt")
   } 
 }
-
 
 
 
