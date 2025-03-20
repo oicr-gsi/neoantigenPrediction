@@ -704,7 +704,7 @@ task getPeptides {
 task vepAnnotate{
   input{
     File vcf
-    String refFasta,
+    String refFasta
     String outputFilePrefix
     String modules = "vep/112.0 pcgr/2.0.3 pvactools/4.3.0 hg38/p12"
     Int jobMemory = 6
