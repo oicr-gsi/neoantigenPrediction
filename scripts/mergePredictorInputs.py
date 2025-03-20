@@ -2,7 +2,7 @@ import sys
 import pandas as pd
 import os
 
-def merge_predictor_inputs(variants_peptides, variant_deciles, expression_deciles, rnaseq_variants):
+def merge_predictor_inputs(variants_peptides, variant_deciles, expression_deciles, rnaseq_variants, output_prefix):
     # Check if input files exist
     for file in [variants_peptides, variant_deciles, expression_deciles, rnaseq_variants]:
         if not os.path.exists(file):
@@ -56,7 +56,7 @@ def merge_predictor_inputs(variants_peptides, variant_deciles, expression_decile
     m = m[columns]
     
     # Write the DataFrame to a TSV file
-    m.to_csv('ID.output.merged.tsv', sep='\t', index=False, quoting=False)
+    m.to_csv(f'{output_prefix}.output.merged.tsv', sep='\t', index=False, quoting=False)
     
     # Create a new DataFrame with formatted columns
     df = pd.DataFrame({
@@ -69,14 +69,15 @@ def merge_predictor_inputs(variants_peptides, variant_deciles, expression_decile
     })
 
     # Write the new DataFrame to an Excel file
-    df.to_excel('ID.output.merged.xls', index=False, engine='openpyxl')
+    df.to_excel(f'{output_prefix}.output.merged.xls', index=False, engine='openpyxl')
     
-    return 'ID.output.merged.tsv', 'ID.output.merged.xls'
+    return f'{output_prefix}.output.merged.tsv', f'{output_prefix}.output.merged.xls'
 
 if __name__ == "__main__":
     variants_peptides = sys.argv[1]
     variant_deciles = sys.argv[2]
     expression_deciles = sys.argv[3]
     rnaseq_variants = sys.argv[4]
+    output_prefix = sys.argv[5]
     
-    merge_predictor_inputs(variants_peptides, variant_deciles, expression_deciles, rnaseq_variants)
+    merge_predictor_inputs(variants_peptides, variant_deciles, expression_deciles, rnaseq_variants, output_prefix)
