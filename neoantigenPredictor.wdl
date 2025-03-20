@@ -92,54 +92,64 @@ workflow neoantigenPredictor {
   call extractHLAs {
     input:
       hlafiles = HLAFiles.files,
-      hlacallers = HLAFiles.callers
+      hlacallers = HLAFiles.callers,
+      outputFilePrefix = outputFilePrefix
   }
   ### prepare for PCGR by adding in required INFO fields : TDP,TVAF,NDP,NVAF
   call format2pcgr {
     input:
       vcfin = DNAVariantCalls.vcf,
-      tumorId = DNAVariantCalls.tumorId
+      tumorId = DNAVariantCalls.tumorId,
+      outputFilePrefix = outputFilePrefix
   }
   ### generate Deciles from the formatted vcf file
   call vafDeciles {
     input: 
-      vcf= format2pcgr.vcfout
+      vcf= format2pcgr.vcfout,
+      outputFilePrefix = outputFilePrefix
   }
   ### call the PCGR software to determine which variants to keep as candidate sites
   call PCGR {
     input:
       vcf = format2pcgr.vcfout,
-      vcfIndex = format2pcgr.vcfoutIndex
+      vcfIndex = format2pcgr.vcfoutIndex,
+      outputFilePrefix = outputFilePrefix
   }
  call vepAnnotate {
     input:
       vcf = PCGR.candidateCalls,
-      refFasta = resources[reference].refFasta
+      refFasta = resources[reference].refFasta,
+      outputFilePrefix = outputFilePrefix
   }
   call getPeptides {
     input: 
       vcf = vepAnnotate.annotatedCandidateCalls,
-      tumorId = DNAVariantCalls.tumorId
+      tumorId = DNAVariantCalls.tumorId,
+      outputFilePrefix = outputFilePrefix
   }
   call formatCalls {
     input:
       peptides = getPeptides.peptides,
-      vcf = vepAnnotate.annotatedCandidateCalls
+      vcf = vepAnnotate.annotatedCandidateCalls,
+      outputFilePrefix = outputFilePrefix
   }
   call ExpressionDeciles {
     input:
-      tsv = RNAAbundance
+      tsv = RNAAbundance,
+      outputFilePrefix = outputFilePrefix
   }
   call rnaseqVariants {
     input:
-      vcf = RNAVariantCalls.vcf
+      vcf = RNAVariantCalls.vcf,
+      outputFilePrefix = outputFilePrefix
   }
   call mergePredictorInputs {
      input:
        variants_peptides = formatCalls.tsv,
        variant_deciles = vafDeciles.deciles,
        expression_deciles = ExpressionDeciles.deciles,
-       rnaseq_variants = rnaseqVariants.tsv
+       rnaseq_variants = rnaseqVariants.tsv,
+       outputFilePrefix = outputFilePrefix
   }
   call chunkPredictorInputFile {
     input:
@@ -317,6 +327,7 @@ task extractHLAs{
   input{
     Array[File] hlafiles
     Array[String] hlacallers
+    String outputFilePrefix
     String modules = "neopipe/1.0.0" 
     Int jobMemory = 6
     Int timeout = 20	
@@ -381,7 +392,7 @@ task extractHLAs{
   
  
   hlastring= " ".join(hlas)
-  with open("hlastring.txt","w") as hlaout:
+  with open("~{outputFilePrefix}.hlastring.txt","w") as hlaout:
     hlaout.write(hlastring)
   hlaout.close()
   CODE
@@ -394,7 +405,7 @@ task extractHLAs{
   }
   
   output {
-    String hlas = read_string("hlastring.txt")
+    String hlas = read_string("~{outputFilePrefix}.hlastring.txt")
   } 
 }
 task predict{
@@ -430,6 +441,7 @@ task mergePredictorInputs{
      File variant_deciles
      File expression_deciles
      File rnaseq_variants
+     String outputFilePrefix
      String modules = "neopipe/1.0.0"
      Int jobMemory = 6
      Int timeout = 20	  
@@ -456,11 +468,11 @@ task mergePredictorInputs{
    m$variant_in_rna[is.na(m$variant_in_rna)]=0
 
    # Write in tsv table
-   write.table(m, "ID.output.merged.tsv", quote=F, row.names=F, sep="\t")
+   write.table(m, "~{outputFilePrefix}.output.merged.tsv", quote=F, row.names=F, sep="\t")
    # Format for .xlsx input
    df=data.frame(paste(m\$chr,m\$pos,m\$ref,m\$alt,sep=";"),m\$wt_peptides,m\$mt_peptides,m\$vaf_decile,m\$expression_decile,m\$variant_in_rna)
    colnames(df)=c("Unique identifier","Wt nmer","Mut nmer","Exome VAF decile","Gene expression decile","Present in RNA-seq data")
-   write_xlsx(df, "ID.output.merged.xls")
+   write_xlsx(df, "~{outputFilePrefix}.output.merged.xls")
    RCODE
    >>>  
 
@@ -470,8 +482,8 @@ task mergePredictorInputs{
     timeout: "~{timeout}"
   }
   output {
-    File tsv = "ID.output.merged.tsv"
-    File xls = "ID.output.merged.xls"
+    File tsv = "~{outputFilePrefix}.output.merged.tsv"
+    File xls = "~{outputFilePrefix}.output.merged.xls"
   }
 
 }
@@ -480,12 +492,13 @@ task mergePredictorInputs{
 task rnaseqVariants{
   input {
     File vcf
+    String outputFilePrefix
     String modules = "bcftools/1.9"
     Int jobMemory = 6
     Int timeout = 20
   }
   command<<<
-    bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t1\n' ~{vcf} > ID.rnaseq_variants.tsv
+    bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t1\n' ~{vcf} > ~{outputFilePrefix}.rnaseq_variants.tsv
     >>>  
 
   runtime {
@@ -494,7 +507,7 @@ task rnaseqVariants{
     timeout: "~{timeout}"
   }
   output {
-    File tsv = "ID.rnaseq_variants.tsv"
+    File tsv = "~{outputFilePrefix}.rnaseq_variants.tsv"
   }
 }
 
@@ -503,6 +516,7 @@ task formatCalls{
   input {
     File peptides
     File vcf
+    String outputFilePrefix
     String modules = "bcftools/1.9"
     Int jobMemory = 6
     Int timeout = 20
@@ -514,7 +528,7 @@ task formatCalls{
     import re
     import os
 
-    fout = open("ID.candidateCalls.tsv","w")
+    fout = open("~{outputFilePrefix}.candidateCalls.tsv","w")
     output_fields=["chr","pos","rs_id","ref","alt","type","callers","tumor_dp","normal_dp","tumor_vaf","normal_vaf","consequence","impact","gene","ensembl_id","transcript_id","biotype","nuc_change","aa_change","cdna_pos","cds_pos","protein_pos","amino_acids","codons","wt_peptides","mt_peptides"]
     print(*output_fields,sep="\t",file=fout)
     
@@ -584,7 +598,7 @@ task formatCalls{
     timeout: "~{timeout}"
   }
   output {
-    File tsv = "ID.candidateCalls.tsv"
+    File tsv = "~{outputFilePrefix}.candidateCalls.tsv"
   }
 }
 
@@ -593,7 +607,8 @@ task formatCalls{
 task ExpressionDeciles{
   input {
     File tsv
-    String modules = "neopipe/1.0.0"
+    String outputFilePrefix
+    String modules = "neopipe/1.0.0 ensembl/104-hg38"
     Int jobMemory = 6
     Int timeout = 20
   }
@@ -610,7 +625,7 @@ task ExpressionDeciles{
   ### see https://bioconductor.org/packages/release/bioc/html/tximport.html
   ### parameters include the expression caller (eg kallisto), which aligns to the expected format
   ### paremeters include a mapping file of transcript IDs to gene IDs (tx2gene)
-  tx2gene_file<- "/.mounts/labs/gsi/src/neoAntigen/Homo_sapiens.GRCh38.Ensembl104.tx2gene"
+  tx2gene_file<- "$ENSEMBL_ROOT/Homo_sapiens.GRCh38.Ensembl104.tx2gene"
   tx2gene=read.delim(tx2gene_file, as.is=T)
   df <- as.data.frame(tximport(args[1],type = "kallisto", tx2gene = tx2gene))
   
@@ -629,7 +644,7 @@ task ExpressionDeciles{
   ## combine output
   output <- rbind(output1,output0)
   output[order(output\$gene_id),]
-  output_fname<-"ID.expression_deciles_kallisto50_ensembl104.tsv"
+  output_fname<-"~{outputFilePrefix}.expression_deciles_kallisto50_ensembl104.tsv"
   write.table(output, file = output_fname, sep = "\t", row.names = FALSE, quote=F)
   
   RCODE
@@ -641,7 +656,7 @@ task ExpressionDeciles{
     timeout: "~{timeout}"
   }
   output {
-    File deciles = "ID.expression_deciles_kallisto50_ensembl104.tsv"
+    File deciles = "~{outputFilePrefix}.expression_deciles_kallisto50_ensembl104.tsv"
   }
 }
 
@@ -651,6 +666,7 @@ task getPeptides {
   input{
     File vcf
     String tumorId
+    String outputFilePrefix
     String modules = "pvactools/4.3.0"
     Int jobMemory = 6
     Int timeout = 20
@@ -661,16 +677,16 @@ task getPeptides {
    pvacseq generate_protein_fasta \
    -s ~{tumorId} \
    -d 12 \
-   ~{vcf} 12 ID.peptides.fa
+   ~{vcf} 12 ~{outputFilePrefix}.peptides.fa
    
    ## convert to single line per site with WTid,WTseq,MTid,MTseq
-   cat ID.peptides.fa | paste - - - - > ID.peptides.0.txt
+   cat ~{outputFilePrefix}.peptides.fa | paste - - - - > ~{outputFilePrefix}.peptides.0.txt
    ## keep only records where MT != WT peptide
-   cat ID.peptides.0.txt | awk '{if($2 != $4) print}' > ID.peptides.1.txt
+   cat ~{outputFilePrefix}.peptides.0.txt | awk '{if($2 != $4) print}' > ~{outputFilePrefix}.peptides.1.txt
    ## order by numeric identifier
-   cat ID.peptides.1.txt | sort -t . -k2 -g > ID.peptides.2.txt
+   cat ~{outputFilePrefix}.peptides.1.txt | sort -t . -k2 -g > ~{outputFilePrefix}.peptides.2.txt
    ## keep only if unique and peptide length == 25
-   cat ID.peptides.2.txt | awk -F'\t' '!seen[$2,$4]++ && length($2) >= 25 && length($4) >= 25' > ID.peptides.txt
+   cat ~{outputFilePrefix}.peptides.2.txt | awk -F'\t' '!seen[$2,$4]++ && length($2) >= 25 && length($4) >= 25' > ~{outputFilePrefix}.peptides.txt
 
 
    >>>
@@ -681,32 +697,31 @@ task getPeptides {
     timeout: "~{timeout}"
   }
   output {
-    File peptides = "ID.peptides.txt"
+    File peptides = "~{outputFilePrefix}.peptides.txt"
   }
 }
 
 task vepAnnotate{
   input{
     File vcf
-    String refFasta
-    String modules = "vep/112.0 pcgr/2.0.3 hg38/p12"
+    String refFasta,
+    String outputFilePrefix
+    String modules = "vep/112.0 pcgr/2.0.3 pvactools/4.3.0 hg38/p12"
     Int jobMemory = 6
     Int timeout = 20
    }
-   
-   
-   String plugins="/.mounts/labs/gsi/src/pvactools/plugins/"
+
    command<<<
    
    vep \
    --input_file ~{vcf} \
-   --output_file ID.vep.vcf \
+   --output_file ~{outputFilePrefix}.vep.vcf \
    --format vcf --vcf --symbol --terms SO --tsl \
    --hgvs --fasta ~{refFasta} \
    --offline \
    --cache --dir_cache $VEP_DIR --cache_version 112 \
    --plugin Frameshift --plugin Wildtype \
-   --dir_plugins ~{plugins} --pick --transcript_version \
+   --dir_plugins $PVACTOOLS_VEP_PLUGINS --pick --transcript_version \
    --force_overwrite
    >>>
 
@@ -716,13 +731,14 @@ task vepAnnotate{
     timeout: "~{timeout}"
   }
   output {
-    File annotatedCandidateCalls = "ID.vep.vcf"
+    File annotatedCandidateCalls = "~{outputFilePrefix}.vep.vcf"
   }
 }
 
 task vafDeciles{
   input {
     File vcf
+    String outputFilePrefix
     String modules = "neopipe/1.0.0 bcftools/1.9"
     Int jobMemory = 6
     Int timeout = 20
@@ -731,13 +747,13 @@ task vafDeciles{
   command<<<
 
   ## extract relevant fields from the vcf records
-  bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%TVAF\n' ~{vcf} > ID.all_variants_vaf.tsv
+  bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%TVAF\n' ~{vcf} > ~{outputFilePrefix}.all_variants_vaf.tsv
   
   ## generated deciles with R code
   R --vanilla <<RCODE
   library(dplyr)
   
-  fin="ID.all_variants_vaf.tsv"
+  fin="~{outputFilePrefix}.all_variants_vaf.tsv"
   data <- read.delim(fin, header = FALSE, sep = "\t", col.names = c("chr", "pos", "ref", "alt", "vaf"))
 
   # Standardize the vaf column
@@ -750,7 +766,7 @@ task vafDeciles{
   output <- data.frame(data[, 1:5], decile = cut(standardized_col, breaks = deciles, labels = FALSE, include.lowest = TRUE))
   
   # Save the output to a new file in the same directory
-  fout <- "ID.deciles.tsv"
+  fout <- "~{outputFilePrefix}.deciles.tsv"
   ### this seens to writes out the data without a headerline...is this necessary, or maybe it is done purposely
   write.table(output, file = fout, sep = "\t", row.names = FALSE, quote = FALSE)
   
@@ -763,7 +779,7 @@ task vafDeciles{
     timeout: "~{timeout}"
   }
   output {
-    File deciles = "ID.deciles.tsv"
+    File deciles = "~{outputFilePrefix}.deciles.tsv"
   }
 }
 
@@ -772,6 +788,7 @@ task format2pcgr{
   input {
     File vcfin
     String tumorId
+    String outputFilePrefix
     String modules = "neopipe/1.0.0 bcftools/1.9"
     Int jobMemory = 6
     Int timeout = 20
@@ -780,17 +797,18 @@ task format2pcgr{
   }
   command <<<
   
-  python3 /.mounts/labs/gsiprojects/gsi/gsiusers/hdriver/Scripting/NeoAntigen/Install_Mugqic/mugqic_tools-2.12.8.tar.gz/python-tools/format2pcgr.py \
+  format2pcgr \
         -i ~{vcfin} \
-        -o ID.ensemble.somatic.vt.annot.2callers.TEMP.vcf.gz \
+        -o ~{outputFilePrefix}.ensemble.somatic.vt.annot.2callers.TEMP.vcf.gz \
         -f 2 \
         -t ~{tumorId} \
         -v somatic \
         > format2pcgr.log 2>&1
+
   bcftools view -Oz -i 'TDP>=10 && TVAF>=0.05 && NDP>=10 && NVAF<=0.02' \
         -o ID.ensemble.somatic.vt.annot.2callers.vcf.gz \
-        ID.ensemble.somatic.vt.annot.2callers.TEMP.vcf.gz
-  tabix -pvcf ID.ensemble.somatic.vt.annot.2callers.vcf.gz
+        ~{outputFilePrefix}.ensemble.somatic.vt.annot.2callers.TEMP.vcf.gz
+  tabix -pvcf ~{outputFilePrefix}.ensemble.somatic.vt.annot.2callers.vcf.gz
   
   >>>
   runtime {
@@ -799,8 +817,8 @@ task format2pcgr{
     timeout: "~{timeout}"
   }
   output {
-    File vcfout = "ID.ensemble.somatic.vt.annot.2callers.vcf.gz"
-    File vcfoutIndex = "ID.ensemble.somatic.vt.annot.2callers.vcf.gz.tbi"
+    File vcfout = "~{outputFilePrefix}.ensemble.somatic.vt.annot.2callers.vcf.gz"
+    File vcfoutIndex = "~{outputFilePrefix}.ensemble.somatic.vt.annot.2callers.vcf.gz.tbi"
   }
 }
 
@@ -809,6 +827,7 @@ task PCGR{
   input {
     File vcf
     File vcfIndex
+    String outputFilePrefix
     String modules = "pcgr/2.0.3"
     Int jobMemory = 6
     Int timeout = 20
@@ -836,7 +855,7 @@ task PCGR{
     --input_vcf ~{vcf} \
     --output_dir pcgr \
     --genome_assembly grch38 \
-    --sample_id PCGR \
+    --sample_id ~{outputFilePrefix} \
     --vep_dir $VEP_DIR \
     --refdata_dir $REFDATA_DIR \
     --pcgrr_conda $PCGR_ROOT \
@@ -844,7 +863,7 @@ task PCGR{
   
   R --vanilla<<RCODE
     library(pcgrr)
-    yaml_fname<-"pcgr/PCGR.pcgr.grch38.conf.yaml"
+    yaml_fname<-"pcgr/~{outputFilePrefix}.pcgr.grch38.conf.yaml"
     my_log4r_layout <- function(level, ...) {
        paste0(format(Sys.time()), " - pcgr-report-generation - ",level, " - ", ..., "\n", collapse = "")
     }
@@ -865,8 +884,8 @@ task PCGR{
   import csv
   import gzip
   import re
-  fout = open("pcgr_filter_sites.txt","w")
-  with gzip.open("pcgr/PCGR.pcgr.grch38.snv_indel_ann.tsv.gz",'rt') as f:
+  fout = open("~{outputFilePrefix}.pcgr_filter_sites.txt","w")
+  with gzip.open("pcgr/~{outputFilePrefix}.pcgr.grch38.snv_indel_ann.tsv.gz",'rt') as f:
     reader=csv.DictReader(f,delimiter="\t")
     for row in reader:
       if row['EXONIC_STATUS']=='exonic' or (row['EXONIC_STATUS']=='non-exonic' and row['ACTIONABILITY_TIER']<=2):
@@ -878,7 +897,7 @@ task PCGR{
   CODE
   
   ### now filter based on sites
-  bcftools view -R pcgr_filter_sites.txt -o ID.candidate_sites.vcf ~{vcf}
+  bcftools view -R ~{outputFilePrefix}.pcgr_filter_sites.txt -o ~{outputFilePrefix}.candidate_sites.vcf ~{vcf}
 
 
   	
@@ -889,7 +908,7 @@ task PCGR{
     timeout: "~{timeout}"
   }
   output {
-    File candidateCalls = "ID.candidate_sites.vcf"
+    File candidateCalls = "~{outputFilePrefix}.candidate_sites.vcf"
   }
 }
 
