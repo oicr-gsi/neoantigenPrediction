@@ -800,7 +800,7 @@ task mergePredictorInputs{
    # Write in tsv table
    write.table(m, "~{outputFilePrefix}.output.merged.tsv", quote=F, row.names=F, sep="\t")
    # Format for .xlsx input
-   df=data.frame(paste(m\$chr,m\$pos,m\$ref,m\$alt,sep=";"),m\$wt_peptides,m\$mt_peptides,m\$vaf_decile,m\$expression_decile,m\$variant_in_rna)
+   df=data.frame(paste(m\$chr,m\$pos,m\$ref,m\$alt,m\$gene,sep=";"),m\$wt_peptides,m\$mt_peptides,m\$vaf_decile,m\$expression_decile,m\$variant_in_rna)
    colnames(df)=c("Unique identifier","Wt nmer","Mut nmer","Exome VAF decile","Gene expression decile","Present in RNA-seq data")
    write_xlsx(df, "~{outputFilePrefix}.output.merged.xls")
    RCODE
@@ -818,7 +818,98 @@ task mergePredictorInputs{
 
 }
 
+
+task predict{
+  input{
+    File xls
+    String hlas
+    String modules = "sb-neoantigen-models/1.0.0" 
+    Int jobMemory = 6
+    Int timeout = 20	  	
+  }
+
+  parameter_meta {
+      xls: "xls file with inputs to sb_neoantigen_predictor"
+	  hlas: "an string with a list of hlas"
+	  modules: "Names and versions of modules"
+	  jobMemory: "Memory allocated for task in GB"
+      timeout: "Timeout in hours"
+  }
+
+  command<<<
+  ### set up split to parallelize job
+  python $SB_NEOANTIGEN_MODELS_ROOT/src/GenerateScores.py ~{xls} ~{hlas}
+  ### set up join to join results from parallelized jobs
+  >>>
   
+  String prefix = basename(xls)
+  
+  runtime {
+    memory:  "~{jobMemory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+  output {
+    File predictorOutput = "~{prefix}_scored.xlsx"
+  }  
+}
+
+
+task chunkPredictorInputFile {
+   input{
+     File xls
+     Int chunksize
+     String modules = "neopipe/1.0.0 sb-neoantigen-models/1.0.0"
+     Int jobMemory = 6
+     Int timeout = 20 
+   }
+  parameter_meta {
+      xls: "xls file with inputs to sb_neoantigen_predictor"
+    chunksize: "the number of records to include in each chunk"
+    modules: "Names and versions of modules"
+    jobMemory: "Memory allocated for task in GB"
+      timeout: "Timeout in hours"
+  }
+
+  command<<<
+  
+  python3 <<CODE
+  import sys
+  import pandas as pd
+  import numpy as np
+  import os
+
+
+  
+  df=pd.read_excel("~{xls}")
+  rowcount=len(df)
+  #### need to round this appropriate
+  chunks=int(np.ceil(rowcount/~{chunksize}))
+  dfs=np.array_split(df,chunks)
+
+  chunk=0
+  for df in dfs:
+      chunk = chunk + 1
+      ## this function appears to require xlsx extension, but i need to use xls extension for the predictor
+      tmpfn="predict_input" + str(chunk) + ".xlsx"
+      df.to_excel(tmpfn,index=False)
+      os.rename("predict_input" + str(chunk) + ".xlsx", "predict_input" + str(chunk) + ".xls")
+     
+  CODE
+  >>>
+
+  runtime {
+    memory:  "~{jobMemory} GB"
+    modules: "~{modules}"
+    timeout: "~{timeout}"
+  }
+
+  output {
+    Array[File] predictorInputs = glob("predict_input*.xls")
+  } 
+}  
+
+
 task mergePredictorOutputs {
    input{
      Array[File] predictorOutputs
@@ -826,15 +917,15 @@ task mergePredictorOutputs {
      String outputFilePrefix
      String modules = "neopipe/1.0.0 sb-neoantigen-models/1.0.0"
      Int jobMemory = 6
-     Int timeout = 20	
+     Int timeout = 20 
    }
    
   parameter_meta {
-      predictorOutputs: "outputs from sb_neoantigen_predictor that need to be merged"
-	  predictorInputTSV: "the full input to the neoantigen_predictor"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
-      timeout: "Timeout in hours"
+    predictorOutputs: "outputs from sb_neoantigen_predictor that need to be merged"
+    predictorInputTSV: "the full input to the neoantigen_predictor"
+    modules: "Names and versions of modules"
+    jobMemory: "Memory allocated for task in GB"
+    timeout: "Timeout in hours"
   }
   
   
@@ -901,14 +992,14 @@ task mergePredictorOutputs {
   df_nmers_extended=pd.merge(df_nmers,df_mmps_match,on="Unique identifier")
 
   ### split the Unique identifier to columns, for the final merge, adjust the dtype for pos for merging
-  df_nmers_extended[["chr","pos","ref","alt"]]=df_nmers_extended['Unique identifier'].str.split(";",expand=True,)
+  df_nmers_extended[["chr","pos","ref","alt","gene"]]=df_nmers_extended['Unique identifier'].str.split(";",expand=True,)
   df_nmers_extended=df_nmers_extended.drop(["Unique identifier"],axis=1)
   df_nmers_extended["pos"]=df_nmers_extended["pos"].astype('int64')
 
   ### load the tsv file
   df_tsv=pd.read_csv("~{predictorInputTSV}",sep="\t")
   ### merge in the nmer information
-  df_tsv_extended=pd.merge(df_tsv,df_nmers_extended,on=["chr","pos","ref","alt"])
+  df_tsv_extended=pd.merge(df_tsv,df_nmers_extended,on=["chr","pos","ref","alt","gene"])
 
   df_tsv_extended.to_csv("~{outputFilePrefix}_neoantigenPredictions.tsv",index=False,sep="\t")  
   
@@ -929,96 +1020,8 @@ task mergePredictorOutputs {
 }
 
 
-task predict{
-  input{
-    File xls
-    String hlas
-    String modules = "sb-neoantigen-models/1.0.0" 
-    Int jobMemory = 6
-    Int timeout = 20	  	
-  }
-
-  parameter_meta {
-      xls: "xls file with inputs to sb_neoantigen_predictor"
-	  hlas: "an string with a list of hlas"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
-      timeout: "Timeout in hours"
-  }
-
-  command<<<
-  ### set up split to parallelize job
-  python $SB_NEOANTIGEN_MODELS_ROOT/src/GenerateScores.py ~{xls} ~{hlas}
-  ### set up join to join results from parallelized jobs
-  >>>
-  
-  String prefix = basename(xls)
-  
-  runtime {
-    memory:  "~{jobMemory} GB"
-    modules: "~{modules}"
-    timeout: "~{timeout}"
-  }
-  output {
-    File predictorOutput = "~{prefix}_scored.xlsx"
-  }  
-}
 
 
-
-task chunkPredictorInputFile {
-   input{
-     File xls
-     Int chunksize
-     String modules = "neopipe/1.0.0 sb-neoantigen-models/1.0.0"
-     Int jobMemory = 6
-     Int timeout = 20	
-   }
-  parameter_meta {
-      xls: "xls file with inputs to sb_neoantigen_predictor"
-	  chunksize: "the number of records to include in each chunk"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
-      timeout: "Timeout in hours"
-  }
-
-  command<<<
-  
-  python3 <<CODE
-  import sys
-  import pandas as pd
-  import numpy as np
-  import os
-
-
-  
-  df=pd.read_excel("~{xls}")
-  rowcount=len(df)
-  #### need to round this appropriate
-  chunks=int(np.ceil(rowcount/~{chunksize}))
-  dfs=np.array_split(df,chunks)
-
-  chunk=0
-  for df in dfs:
-      chunk = chunk + 1
-      ## this function appears to require xlsx extension, but i need to use xls extension for the predictor
-      tmpfn="predict_input" + str(chunk) + ".xlsx"
-      df.to_excel(tmpfn,index=False)
-      os.rename("predict_input" + str(chunk) + ".xlsx", "predict_input" + str(chunk) + ".xls")
-     
-  CODE
-  >>>
-
-  runtime {
-    memory:  "~{jobMemory} GB"
-    modules: "~{modules}"
-    timeout: "~{timeout}"
-  }
-
-  output {
-    Array[File] predictorInputs = glob("predict_input*.xls")
-  } 
-}  
   
   
   
