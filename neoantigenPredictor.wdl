@@ -176,7 +176,7 @@ task extractHLAs{
     Array[File] hlafiles
     Array[String] hlacallers
     String outputFilePrefix
-    String modules = "neopipe/1.0.0" 
+    String modules = "neopipe/1.1.0" 
     Int jobMemory = 6
     Int timeout = 20	
   }
@@ -192,7 +192,7 @@ task extractHLAs{
   
   command<<<
   
-  python3 /.mounts/labs/gsiprojects/gsi/gsiusers/mrojaspena/repositories/github_repos/neoantigenPrediction/scripts/extractHLAs.py \
+  python3 $NEOPIPE_ROOT/bin/extractHLAs.py \
     "~{sep=" " hlafiles}" \
     "~{sep=" " hlacallers}" \
     ~{outputFilePrefix}.hlastring.txt
@@ -216,7 +216,7 @@ task format2pcgr{
     File vcfin
     String tumorId
     String outputFilePrefix
-    String modules = "neopipe/1.0.0 bcftools/1.9"
+    String modules = "neopipe/1.1.0 bcftools/1.9"
     Int jobMemory = 6
     Int timeout = 20
   }
@@ -230,7 +230,7 @@ task format2pcgr{
   }
   command <<<
   
-  format2pcgr \
+  python3 $NEOPIPE_ROOT/bin/format2pcgr.py \
         -i ~{vcfin} \
         -o temp.ensemble.somatic.vt.annot.2callers.vcf.gz \
         -f 2 \
@@ -261,7 +261,7 @@ task PCGR{
     File vcf
     File vcfIndex
     String outputFilePrefix
-    String modules = "pcgr/2.0.3"
+    String modules = "neopipe/1.1.0 pcgr/2.0.3"
     Int jobMemory = 6
     Int timeout = 20
   }
@@ -316,13 +316,11 @@ task PCGR{
    pcgrr::write_report_excel(report = pcg_report)
   RCODE
   
-  
   ### identify sites of interest (exonic, or non-exonic but actionable)
-  python3 /.mounts/labs/gsiprojects/gsi/gsiusers/mrojaspena/repositories/github_repos/neoantigenPrediction/scripts/filter_snv_indel.py ~{outputFilePrefix}
+  python3 $NEOPIPE_ROOT/bin/filter_snv_indel.py ~{outputFilePrefix}
   
   ### now filter based on sites
   bcftools view -R ~{outputFilePrefix}.pcgr_filter_sites.txt -o ~{outputFilePrefix}.candidate_sites.vcf ~{vcf}
-
 
   	
   >>>
@@ -354,8 +352,6 @@ task vepAnnotate{
 	  jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
   }
-
-
 
    command<<<
    
@@ -434,7 +430,7 @@ task formatCalls{
     File peptides
     File vcf
     String outputFilePrefix
-    String modules = "bcftools/1.9"
+    String modules = "neopipe/1.1.0 bcftools/1.9"
     Int jobMemory = 6
     Int timeout = 20
   }
@@ -450,7 +446,7 @@ task formatCalls{
 
   command<<<
 
-  python3 /.mounts/labs/gsiprojects/gsi/gsiusers/mrojaspena/repositories/github_repos/neoantigenPrediction/scripts/formatCalls.py \
+  python3 $NEOPIPE_ROOT/bin/formatCalls.py \
     ~{peptides} \
     ~{vcf} \
     ~{outputFilePrefix}
@@ -471,7 +467,7 @@ task vafDeciles{
   input {
     File vcf
     String outputFilePrefix
-    String modules = "neopipe/1.0.0 bcftools/1.9"
+    String modules = "neopipe/1.1.0 bcftools/1.9"
     Int jobMemory = 6
     Int timeout = 20
   }
@@ -489,28 +485,11 @@ task vafDeciles{
   ## extract relevant fields from the vcf records
   bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%TVAF\n' ~{vcf} > ~{outputFilePrefix}.all_variants_vaf.tsv
   
-  ## generated deciles with R code
-  R --vanilla <<RCODE
-  library(dplyr)
-  
-  fin="~{outputFilePrefix}.all_variants_vaf.tsv"
-  data <- read.delim(fin, header = FALSE, sep = "\t", col.names = c("chr", "pos", "ref", "alt", "vaf"))
+  ## generated deciles
+  python3 $NEOPIPE_ROOT/bin/vafDeciles.py \
+  ~{outputFilePrefix}.all_variants_vaf.tsv \
+  ~{outputFilePrefix} \
 
-  # Standardize the vaf column
-  standardized_col <- scale(data\$vaf)
-  
-  # Calculate deciles
-  deciles <- quantile(standardized_col, probs = seq(0, 1, 0.1))
-
-  # Output results
-  output <- data.frame(data[, 1:5], decile = cut(standardized_col, breaks = deciles, labels = FALSE, include.lowest = TRUE))
-  
-  # Save the output to a new file in the same directory
-  fout <- "~{outputFilePrefix}.deciles.tsv"
-  ### this seens to writes out the data without a headerline...is this necessary, or maybe it is done purposely
-  write.table(output, file = fout, sep = "\t", row.names = FALSE, quote = FALSE)
-  
-  RCODE
   >>>  
 
   runtime {
@@ -527,7 +506,7 @@ task ExpressionDeciles{
   input {
     File tsv
     String outputFilePrefix
-    String modules = "neopipe/1.0.0 ensembl/104-hg38"
+    String modules = "neopipe/1.1.0 ensembl/104-hg38"
     Int jobMemory = 6
     Int timeout = 20
   }
@@ -542,7 +521,7 @@ task ExpressionDeciles{
   
   command<<<
 
-  python3 /.mounts/labs/gsiprojects/gsi/gsiusers/mrojaspena/repositories/github_repos/neoantigenPrediction/scripts/ExpressionDeciles.py \
+  python3 $NEOPIPE_ROOT/bin/ExpressionDeciles.py \
     ~{tsv} \
     ~{outputFilePrefix}
 
@@ -590,10 +569,6 @@ task rnaseqVariants{
 }
 
 
-
-
-
-
 task mergePredictorInputs{
    input {
      File variants_peptides
@@ -601,7 +576,7 @@ task mergePredictorInputs{
      File expression_deciles
      File rnaseq_variants
      String outputFilePrefix
-     String modules = "neopipe/1.0.0"
+     String modules = "neopipe/1.1.0 sb-neoantigen-models/1.0.0"
      Int jobMemory = 6
      Int timeout = 20	  
    }
@@ -618,7 +593,7 @@ task mergePredictorInputs{
 
    command<<<
 
-   python3 /.mounts/labs/gsiprojects/gsi/gsiusers/mrojaspena/repositories/github_repos/neoantigenPrediction/scripts/mergePredictorInputs.py \
+   python3 $NEOPIPE_ROOT/bin/mergePredictorInputs.py \
     ~{variants_peptides} \
     ~{variant_deciles} \
     ~{expression_deciles} \
@@ -680,7 +655,7 @@ task chunkPredictorInputFile {
    input{
      File xls
      Int chunksize
-     String modules = "neopipe/1.0.0 sb-neoantigen-models/1.0.0"
+     String modules = "neopipe/1.1.0 sb-neoantigen-models/1.0.0"
      Int jobMemory = 6
      Int timeout = 20 
    }
@@ -694,7 +669,7 @@ task chunkPredictorInputFile {
 
   command<<<
   
-  python3 /.mounts/labs/gsiprojects/gsi/gsiusers/mrojaspena/repositories/github_repos/neoantigenPrediction/scripts/chunkPredictorInputFile.py \
+  python3 $NEOPIPE_ROOT/bin/chunkPredictorInputFile.py \
     ~{xls} \
     ~{chunksize} \
 
@@ -717,7 +692,7 @@ task mergePredictorOutputs {
      Array[File] predictorOutputs
      File predictorInputTSV
      String outputFilePrefix
-     String modules = "neopipe/1.0.0 sb-neoantigen-models/1.0.0"
+     String modules = "neopipe/1.1.0 sb-neoantigen-models/1.0.0"
      Int jobMemory = 6
      Int timeout = 20 
    }
@@ -733,7 +708,7 @@ task mergePredictorOutputs {
   
   command<<<
 
-  python3 /.mounts/labs/gsiprojects/gsi/gsiusers/mrojaspena/repositories/github_repos/neoantigenPrediction/scripts/mergePredictorOutputs.py \
+  python3 $NEOPIPE_ROOT/bin/mergePredictorOutputs.py \
   "~{sep=" " predictorOutputs}" \
   ~{predictorInputTSV} \
   ~{outputFilePrefix}
@@ -752,21 +727,3 @@ task mergePredictorOutputs {
      File tsv =  "~{outputFilePrefix}_neoantigenPredictions.tsv"
    }
 }
-
-
-
-
-  
-  
-  
-
-
-
-
-
-
-
-
-
-
-
