@@ -55,9 +55,9 @@ def convert_abundance(tsv_file, output_prefix):
     output['deciles'] = output['deciles'].astype(int)
     
     # Output file using pandas without unwanted formatting or quotes
-    output.to_csv(f'{output_prefix}.expression_deciles_kallisto50_ensembl104.tsv', sep="\t", index=False, header=True, quoting=False)
+    output.to_csv(f'{output_prefix}.expression_deciles_kallisto48_ensembl104.tsv', sep="\t", index=False, header=True, quoting=False)
 
-    print(f"File saved to {output_prefix}.expression_deciles_kallisto50_ensembl104.tsv")
+    print(f"File saved to {output_prefix}.expression_deciles_kallisto48_ensembl104.tsv")
 
 if __name__ == "__main__":
     import sys

@@ -42,6 +42,9 @@ def merge_predictor_inputs(variants_peptides, variant_deciles, expression_decile
     # Fill missing RNA-seq variant information with 0
     m["variant_in_rna"] = m["variant_in_rna"].fillna(0)
     
+    # Round abundance_TPM values
+    m["abundance_TPM"] = m["abundance_TPM"].round(7)
+    
     # Defining the column order for the .tsv file
     columns = [
         'chr', 'pos', 'ref', 'alt', 'ensembl_id', 'rs_id', 'type', 'callers', 
@@ -59,7 +62,7 @@ def merge_predictor_inputs(variants_peptides, variant_deciles, expression_decile
     
     # Create a new DataFrame with formatted columns
     df = pd.DataFrame({
-        'Unique identifier': m['chr'] + ";" + m['pos'] + ";" + m['ref'] + ";" + m['alt'],
+        'Unique identifier': m['chr'] + ";" + m['pos'] + ";" + m['ref'] + ";" + m['alt'] + ";" + m['gene'],
         'Wt nmer': m['wt_peptides'],
         'Mut nmer': m['mt_peptides'],
         'Exome VAF decile': m['vaf_decile'],

@@ -27,11 +27,12 @@ def main(predictor_outputs, predictor_input_tsv, outputFilePrefix):
     df_nmers = data["NmersScored"]
     df_mmps = data["MmpsScored"]
 
-    # Prepare to capture the list of lists for matching MMP scores
+    # To capture the list of lists, for conversion to a dataframe
     list_mmps_match = []
 
-    # to capture the list of lists, for conversion to a dataframe
+    # Interate across the nmers row by row
     for index, row in df_nmers.iterrows():
+        # List of values to ad to the list_mmps_match
         match = []
         uid = row['Unique identifier']
         match.append(uid)
@@ -60,7 +61,7 @@ def main(predictor_outputs, predictor_input_tsv, outputFilePrefix):
     df_nmers_extended = pd.merge(df_nmers, df_mmps_match, on="Unique identifier")
 
     # Split the Unique identifier into separate columns and adjust dtype for pos
-    df_nmers_extended[["chr", "pos", "ref", "alt"]] = df_nmers_extended['Unique identifier'].str.split(";", expand=True)
+    df_nmers_extended[["chr", "pos", "ref", "alt", "gene"]] = df_nmers_extended['Unique identifier'].str.split(";", expand=True)
     df_nmers_extended = df_nmers_extended.drop(["Unique identifier"], axis=1)
     df_nmers_extended["pos"] = df_nmers_extended["pos"].astype('int64')
 
@@ -68,7 +69,7 @@ def main(predictor_outputs, predictor_input_tsv, outputFilePrefix):
     df_tsv = pd.read_csv(predictor_input_tsv, sep="\t")
 
     # Merge the Nmer information into the TSV
-    df_tsv_extended = pd.merge(df_tsv, df_nmers_extended, on=["chr", "pos", "ref", "alt"])
+    df_tsv_extended = pd.merge(df_tsv, df_nmers_extended, on=["chr", "pos", "ref", "alt", "gene"])
 
     # Save the extended TSV to a file
     df_tsv_extended.to_csv(f'{output_file_prefix}_neoantigenPredictions.tsv', index=False, sep="\t")
