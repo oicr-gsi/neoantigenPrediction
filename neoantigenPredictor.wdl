@@ -36,8 +36,8 @@ workflow neoantigenPredictor {
   }
 
   meta {
-    author : "Lawrence Heisler"
-    email : "lheisler@oicr.on.ca"
+    author : "Lawrence Heisler , Monica L. Rojas-Pena"
+    email : "lheisler@oicr.on.ca, mrojaspena@oicr.on.ca"
     description : "A workflow that will use variant calls, expression data and HLA typing to predict Neoantigens"
     dependencies : [ 
       {
@@ -533,7 +533,7 @@ task ExpressionDeciles{
     timeout: "~{timeout}"
   }
   output {
-    File deciles = "~{outputFilePrefix}.expression_deciles_kallisto50_ensembl104.tsv"
+    File deciles = "~{outputFilePrefix}.expression_deciles_kallisto48_ensembl104.tsv"
   }
 }
 
