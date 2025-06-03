@@ -12,13 +12,13 @@ struct VariantCalls {
 }
 
 struct HLACalls {
-  Array[File] files
-  Array[String] callers
+  File file
+  String caller
 }
 
 workflow neoantigenPredictor {
   input {
-    HLACalls HLAFiles
+    Array[HLACalls] HLAFiles
     VariantCalls DNAVariantCalls
     VariantCalls RNAVariantCalls
     File RNAAbundance
@@ -27,7 +27,7 @@ workflow neoantigenPredictor {
   }
 
   parameter_meta {
-    HLAFiles : "an array of text files from all the HLA predictions with an array of the corresponding caller names"
+    HLAFiles : "an array of HLA files and their associated caller identifiers (t1k, optitype)"
     DNAVariantCalls : "the ensemble/combined DNA vcf file, from multiple callers, with the index and the tumourID"
     RNAVariantCalls : "the RNA seq variant calls from Haplotype Caller"
     RNAAbundance : "the expression data in text format"
@@ -89,12 +89,21 @@ workflow neoantigenPredictor {
     File NeoAntigenNmers = mergePredictorOutputs.tsv
   }
   ### parse the HLA outputs to construct a string of HLAs
+  scatter(h in HLAFiles) {
+    File one_file = h.file
+    String one_caller = h.caller
+  }
+
+  Array[File] hlafiles = one_file
+  Array[String] hlacallers = one_caller
+
   call extractHLAs {
     input:
-      hlafiles = HLAFiles.files,
-      hlacallers = HLAFiles.callers,
+      hlafiles = hlafiles,
+      hlacallers = hlacallers,
       outputFilePrefix = outputFilePrefix
-  }
+    }
+    
   ### prepare for PCGR by adding in required INFO fields : TDP,TVAF,NDP,NVAF
   call format2pcgr {
     input:

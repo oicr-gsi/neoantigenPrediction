@@ -25,7 +25,7 @@ java -jar cromwell.jar run neoantigenPredictor.wdl --inputs inputs.json
 #### Required workflow parameters:
 Parameter|Value|Description
 ---|---|---
-`HLAFiles`|HLACalls|an array of text files from all the HLA predictions with an array of the corresponding caller names
+`HLAFiles`|Array[HLACalls]|an array of HLA files and their associated caller identifiers (t1k, optitype)
 `DNAVariantCalls`|VariantCalls|the ensemble/combined DNA vcf file, from multiple callers, with the index and the tumourID
 `RNAVariantCalls`|VariantCalls|the RNA seq variant calls from Haplotype Caller
 `RNAAbundance`|File|the expression data in text format
@@ -41,13 +41,13 @@ Parameter|Value|Default|Description
 #### Optional task parameters:
 Parameter|Value|Default|Description
 ---|---|---|---
-`extractHLAs.modules`|String|"neopipe/1.0.0"|Names and versions of modules
+`extractHLAs.modules`|String|"neopipe/1.1.0"|Names and versions of modules
 `extractHLAs.jobMemory`|Int|6|Memory allocated for task in GB
 `extractHLAs.timeout`|Int|20|Timeout in hours
-`format2pcgr.modules`|String|"neopipe/1.0.0 bcftools/1.9"|Names and versions of modules
+`format2pcgr.modules`|String|"neopipe/1.1.0 bcftools/1.9"|Names and versions of modules
 `format2pcgr.jobMemory`|Int|6|Memory allocated for task in GB
 `format2pcgr.timeout`|Int|20|Timeout in hours
-`PCGR.modules`|String|"pcgr/2.0.3"|Names and versions of modules
+`PCGR.modules`|String|"neopipe/1.1.0 pcgr/2.0.3"|Names and versions of modules
 `PCGR.jobMemory`|Int|6|Memory allocated for task in GB
 `PCGR.timeout`|Int|20|Timeout in hours
 `vepAnnotate.modules`|String|"vep/112.0 pcgr/2.0.3 pvactools/4.3.0 hg38/p12"|Names and versions of modules
@@ -56,28 +56,28 @@ Parameter|Value|Default|Description
 `getPeptides.modules`|String|"pvactools/4.3.0"|Names and versions of modules
 `getPeptides.jobMemory`|Int|6|Memory allocated for task in GB
 `getPeptides.timeout`|Int|20|Timeout in hours
-`formatCalls.modules`|String|"bcftools/1.9"|Names and versions of modules
+`formatCalls.modules`|String|"neopipe/1.1.0 bcftools/1.9"|Names and versions of modules
 `formatCalls.jobMemory`|Int|6|Memory allocated for task in GB
 `formatCalls.timeout`|Int|20|Timeout in hours
-`vafDeciles.modules`|String|"neopipe/1.0.0 bcftools/1.9"|Names and versions of modules
+`vafDeciles.modules`|String|"neopipe/1.1.0 bcftools/1.9"|Names and versions of modules
 `vafDeciles.jobMemory`|Int|6|Memory allocated for task in GB
 `vafDeciles.timeout`|Int|20|Timeout in hours
-`ExpressionDeciles.modules`|String|"neopipe/1.0.0 ensembl/104-hg38"|Names and versions of modules
+`ExpressionDeciles.modules`|String|"neopipe/1.1.0 ensembl/104-hg38"|Names and versions of modules
 `ExpressionDeciles.jobMemory`|Int|6|Memory allocated for task in GB
 `ExpressionDeciles.timeout`|Int|20|Timeout in hours
 `rnaseqVariants.modules`|String|"bcftools/1.9"|Names and versions of modules
 `rnaseqVariants.jobMemory`|Int|6|Memory allocated for task in GB
 `rnaseqVariants.timeout`|Int|20|Timeout in hours
-`mergePredictorInputs.modules`|String|"neopipe/1.0.0"|Names and versions of modules
+`mergePredictorInputs.modules`|String|"neopipe/1.1.0 sb-neoantigen-models/1.0.0"|Names and versions of modules
 `mergePredictorInputs.jobMemory`|Int|6|Memory allocated for task in GB
 `mergePredictorInputs.timeout`|Int|20|Timeout in hours
-`chunkPredictorInputFile.modules`|String|"neopipe/1.0.0 sb-neoantigen-models/1.0.0"|Names and versions of modules
+`chunkPredictorInputFile.modules`|String|"neopipe/1.1.0 sb-neoantigen-models/1.0.0"|Names and versions of modules
 `chunkPredictorInputFile.jobMemory`|Int|6|Memory allocated for task in GB
 `chunkPredictorInputFile.timeout`|Int|20|Timeout in hours
 `predict.modules`|String|"sb-neoantigen-models/1.0.0"|Names and versions of modules
 `predict.jobMemory`|Int|6|Memory allocated for task in GB
 `predict.timeout`|Int|20|Timeout in hours
-`mergePredictorOutputs.modules`|String|"neopipe/1.0.0 sb-neoantigen-models/1.0.0"|Names and versions of modules
+`mergePredictorOutputs.modules`|String|"neopipe/1.1.0 sb-neoantigen-models/1.0.0"|Names and versions of modules
 `mergePredictorOutputs.jobMemory`|Int|6|Memory allocated for task in GB
 `mergePredictorOutputs.timeout`|Int|20|Timeout in hours
 
@@ -90,6 +90,7 @@ Output | Type | Description | Labels
 `NeoAntigenNmers`|File|a tsv file with the predictions|vidarr_label: NeoAntigenNmers
 
 
+./commands.txt found, printing out the content...
 ## Commands
  
  This section lists command(s) run by neoantigenPrediction workflow
@@ -97,7 +98,7 @@ Output | Type | Description | Labels
  * Extraction of HLA Calls to an HLA String as input to sb_neoantigen_prediction
  
  ```
- 	#Inline python code, see WDL task for extractHLAs for details (todo: convert to script)
+        #Inline python code, see WDL task for extractHLAs for details (todo: convert to script)
  
  ```
  
