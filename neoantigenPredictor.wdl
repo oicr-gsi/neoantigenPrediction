@@ -221,20 +221,28 @@ task extractHLAs{
           ## limit HLA codes to Field 1 and 2, removing everything after (split on :, then join the first two fields)
           allele1=":".join(fields[2].split(":")[0:2])
           allele2=":".join(fields[5].split(":")[0:2])
-          hlas.append([hla_gene,allele1])
-          hlas.append([hla_gene,allele2])
+          if allele1 != ".":
+              hlas.append([hla_gene, allele1])
+          if allele2 != ".":
+              hlas.append([hla_gene, allele2])
 
     elif caller == "optitype":
       ### A,B and C Alleles are all on one line in columns 2-7 (A1,A2,B1,B2,C1,C2)
       with open(file) as f:
         lines=f.readlines()
         fields=lines[1].replace("*","").split()
-        hlas.append(["A","HLA-" + fields[1]])
-        hlas.append(["A","HLA-" + fields[2]])
-        hlas.append(["B","HLA-" + fields[3]])
-        hlas.append(["B","HLA-" + fields[4]])
-        hlas.append(["C","HLA-" + fields[5]])
-        hlas.append(["C","HLA-" + fields[6]])
+        if fields[1] != ".":
+          hlas.append(["A","HLA-" + fields[1]])
+        if fields[2] != ".":
+          hlas.append(["A","HLA-" + fields[2]])
+        if fields[3] != ".":
+          hlas.append(["B","HLA-" + fields[3]])
+        if fields[4] != ".":
+          hlas.append(["B","HLA-" + fields[4]])
+        if fields[5] != ".":
+          hlas.append(["C","HLA-" + fields[5]])
+        if fields[6] != ".":
+          hlas.append(["C","HLA-" + fields[6]])
     else:
       print("unknown caller " + caller)
       quit()
@@ -282,7 +290,7 @@ task format2pcgr{
     String tumorId
     String outputFilePrefix
     String modules = "neopipe/1.0.0 bcftools/1.9"
-    Int jobMemory = 6
+    Int jobMemory = 48
     Int timeout = 20
   }
   parameter_meta {
@@ -327,6 +335,7 @@ task PCGR{
     File vcfIndex
     String outputFilePrefix
     String modules = "pcgr/2.0.3"
+    Int vep_buffer_size = 500
     Int jobMemory = 6
     Int timeout = 20
   }
@@ -335,7 +344,8 @@ task PCGR{
 	    vcfIndex: "the vcf index file"
       outputFilePrefix: "The prefix to use for the output files"
 	    modules: "Names and versions of modules"
-	    jobMemory: "Memory allocated for task in GB"
+	    vep_buffer_size: "Number of variants processes in memory at once"
+      jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
   }
   command <<<
@@ -345,7 +355,7 @@ task PCGR{
   mkdir pcgr
   pcgr --vcf2maf \
     --force_overwrite \
-    --vep_buffer_size 500 \
+    --vep_buffer_size ~{vep_buffer_size} \
     --vep_regulatory \
     --exclude_dbsnp_nonsomatic \
     --exclude_likely_het_germline \
