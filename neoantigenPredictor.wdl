@@ -229,27 +229,16 @@ for file, caller in zip(files, callers):
                 if gene_name not in ["HLA-A", "HLA-B", "HLA-C"]:
                     continue
 
-                # Extract both alleles from the line
-                allele1_raw = fields[2]
-                allele2_raw = fields[5]
-
-                # Validate and extract allele1
-                if t1k_pattern.match(allele1_raw):
-                    parts = allele1_raw.split("*")
-                    gene = parts[0].replace("HLA-", "")
-                    allele = ":".join(parts[1].split(":")[0:2])
-                    all_hlas.append([gene, f"HLA-{gene}{allele}"])
-                else:
-                    print(f"Invalid allele1 format: {allele1_raw}")
-
-                # Validate and extract allele2
-                if t1k_pattern.match(allele2_raw):
-                    parts = allele2_raw.split("*")
-                    gene = parts[0].replace("HLA-", "")
-                    allele = ":".join(parts[1].split(":")[0:2])
-                    all_hlas.append([gene, f"HLA-{gene}{allele}"])
-                else:
-                    print(f"Invalid allele2 format: {allele2_raw}")
+                # Extract both alleles from the line and validate
+                for idx in [2, 5]:
+                    allele_raw = fields[idx]
+                    if t1k_pattern.match(allele_raw):
+                        parts = allele_raw.split("*")
+                        gene = parts[0].replace("HLA-", "")
+                        allele = ":".join(parts[1].split(":")[0:2])
+                        all_hlas.append([gene, f"HLA-{gene}{allele}"])
+                    else:
+                        print(f"Invalid allele format: {allele_raw}")
 
     elif caller == "optitype":
         # For OptiType output, parse the second line which contains the alleles
@@ -264,22 +253,14 @@ for file, caller in zip(files, callers):
                 if len(fields) <= max(idx1, idx2):
                     continue
 
-                allele1_raw = fields[idx1]
-                allele2_raw = fields[idx2]
-
                 # Validate and extract allele1
-                if optitype_pattern.match(allele1_raw):
-                    allele = allele1_raw.split("*")[1]
-                    all_hlas.append([gene, f"HLA-{gene}{allele}"])
-                else:
-                    print(f"Invalid optitype allele1: {allele1_raw}")
+                for allele_raw in [fields[idx1], fields[idx2]]:
+                    if optitype_pattern.match(allele_raw):
+                        allele = allele_raw.split("*")[1]
+                        all_hlas.append([gene, f"HLA-{gene}{allele}"])
+                    else:
+                        print(f"Invalid optitype allele: {allele_raw}")
 
-                # Validate and extract allele2
-                if optitype_pattern.match(allele2_raw):
-                    allele = allele2_raw.split("*")[1]
-                    all_hlas.append([gene, f"HLA-{gene}{allele}"])
-                else:
-                    print(f"Invalid optitype allele2: {allele2_raw}")
 
     else:
         print(f"Unknown caller: {caller}")
