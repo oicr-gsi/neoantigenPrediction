@@ -85,6 +85,7 @@
    "neoantigenPredictor.mergePredictorOutputs.timeout": null,
    "neoantigenPredictor.PCGR.vcf": null,
    "neoantigenPredictor.PCGR.vcfIndex": null,
+   "neoantigenPredictor.PCGR.vep_buffer_size": null,
    "neoantigenPredictor.PCGR.modules": null,
    "neoantigenPredictor.PCGR.jobMemory": null,
    "neoantigenPredictor.PCGR.timeout": null,  
