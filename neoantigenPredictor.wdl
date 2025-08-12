@@ -198,79 +198,125 @@ task extractHLAs{
       timeout: "Timeout in hours"
   }
   
-  command<<<
-  python3 <<CODE
-  import pandas as pd
-  
-  files="~{sep=" " hlafiles}".split()
-  callers="~{sep=" " hlacallers}".split()
-  
-  ### this code will extract top HLAs from the various outputs, and store in a common format
-  hlas=[]
-  for file in files:
-    caller=callers.pop(0)
+command <<<
+set -e
+
+python3 - <<CODE
+import pandas as pd
+import re
+
+files = "~{sep=" " hlafiles}".split()
+callers = "~{sep=" " hlacallers}".split()
+
+# Regex patterns for allele validation
+t1k_pattern = re.compile(r'^HLA-[ABC]\*\d{2}:\d{2}(:\d{2,3}){0,2}[A-Z]*$')
+optitype_pattern = re.compile(r'^[ABC]\*\d{2}:\d{2}(:\d{2,3}){0,2}[A-Z]*$')
+
+### this code will extract top HLAs from the various outputs, and store in a common format
+all_hlas = []
+
+for file, caller in zip(files, callers):
+
     if caller == "t1k":
-      ### use the top 3 alleles (A,B,C), and show the HLAGene Family (col1, 5th character, A,B or C), and the first and second HLA Allele names (col 3,6)
-      with open(file) as f:
-        lines=f.readlines()[0:3]
-        for line in lines:
-          fields=line.replace("*","").split()
-          ## get the gene HLA-GENE* as a single character, A,B or C, a class I HLA
-          hla_gene=fields[0][4:]
-    
-          ## limit HLA codes to Field 1 and 2, removing everything after (split on :, then join the first two fields)
-          allele1=":".join(fields[2].split(":")[0:2])
-          allele2=":".join(fields[5].split(":")[0:2])
-          if allele1 != ".":
-              hlas.append([hla_gene, allele1])
-          if allele2 != ".":
-              hlas.append([hla_gene, allele2])
+        # For t1k output, use only the top 3 lines (corresponding to HLA-A, -B, -C) 
+        with open(file) as f:
+            lines = f.readlines()[0:3]
+            for line in lines:
+                fields = line.strip().split()
+
+                # Only process genes A, B, or C
+                gene_name = fields[0]
+                if gene_name not in ["HLA-A", "HLA-B", "HLA-C"]:
+                    continue
+
+                # Extract both alleles from the line
+                allele1_raw = fields[2]
+                allele2_raw = fields[5]
+
+                # Validate and extract allele1
+                if t1k_pattern.match(allele1_raw):
+                    parts = allele1_raw.split("*")
+                    gene = parts[0].replace("HLA-", "")
+                    allele = ":".join(parts[1].split(":")[0:2])
+                    all_hlas.append([gene, f"HLA-{gene}{allele}"])
+                else:
+                    print(f"Invalid allele1 format: {allele1_raw}")
+
+                # Validate and extract allele2
+                if t1k_pattern.match(allele2_raw):
+                    parts = allele2_raw.split("*")
+                    gene = parts[0].replace("HLA-", "")
+                    allele = ":".join(parts[1].split(":")[0:2])
+                    all_hlas.append([gene, f"HLA-{gene}{allele}"])
+                else:
+                    print(f"Invalid allele2 format: {allele2_raw}")
 
     elif caller == "optitype":
-      ### A,B and C Alleles are all on one line in columns 2-7 (A1,A2,B1,B2,C1,C2)
-      with open(file) as f:
-        lines=f.readlines()
-        fields=lines[1].replace("*","").split()
-        if fields[1] != ".":
-          hlas.append(["A","HLA-" + fields[1]])
-        if fields[2] != ".":
-          hlas.append(["A","HLA-" + fields[2]])
-        if fields[3] != ".":
-          hlas.append(["B","HLA-" + fields[3]])
-        if fields[4] != ".":
-          hlas.append(["B","HLA-" + fields[4]])
-        if fields[5] != ".":
-          hlas.append(["C","HLA-" + fields[5]])
-        if fields[6] != ".":
-          hlas.append(["C","HLA-" + fields[6]])
-    else:
-      print("unknown caller " + caller)
-      quit()
+        # For OptiType output, parse the second line which contains the alleles
+        with open(file) as f:
+            lines = f.readlines()
+            data_line = lines[1].strip()
+            fields = data_line.split()
 
-  ### convert to data frame and get counts and sort by Count, then alphabetically by the HLA
-  df = pd.DataFrame(hlas,columns=['Gene','HLA'])
-  dfcounts = df.groupby(['Gene','HLA']).size().reset_index(name='Count')
-  dfcounts = dfcounts.sort_values(['Gene', 'Count', "HLA"], ascending = [True, False,True])
-  
-  ### collect final selection to list
-  hlas=[]
-  for gene in dfcounts["Gene"].unique():
-    ## get the top 2 Genes, if only one has been identified, use it twice in the final list
-    dff=dfcounts[dfcounts["Gene"]==gene][0:2]
-    
-    hla_list=dff["HLA"].values.tolist()
-    
-    if len(hla_list)<2:
-        hla_list.extend(hla_list)
-    hlas.extend(hla_list)
-  
- 
-  hlastring= " ".join(hlas)
-  with open("~{outputFilePrefix}.hlastring.txt","w") as hlaout:
+            # Define index positions for A, B, and C alleles in the optitype output
+            gene_cols = [('A', 1, 2), ('B', 3, 4), ('C', 5, 6)]
+            for gene, idx1, idx2 in gene_cols:
+                if len(fields) <= max(idx1, idx2):
+                    continue
+
+                allele1_raw = fields[idx1]
+                allele2_raw = fields[idx2]
+
+                # Validate and extract allele1
+                if optitype_pattern.match(allele1_raw):
+                    allele = allele1_raw.split("*")[1]
+                    all_hlas.append([gene, f"HLA-{gene}{allele}"])
+                else:
+                    print(f"Invalid optitype allele1: {allele1_raw}")
+
+                # Validate and extract allele2
+                if optitype_pattern.match(allele2_raw):
+                    allele = allele2_raw.split("*")[1]
+                    all_hlas.append([gene, f"HLA-{gene}{allele}"])
+                else:
+                    print(f"Invalid optitype allele2: {allele2_raw}")
+
+    else:
+        print(f"Unknown caller: {caller}")
+        continue
+
+# Convert list of alleles into a DataFrame
+df = pd.DataFrame(all_hlas, columns=['Gene', 'HLA'])
+
+# Count the number of times each allele appears per gene
+dfcounts = df.groupby(['Gene', 'HLA']).size().reset_index(name='Count')
+
+# Sort by gene, then by count (descending), then by allele name (ascending)
+dfcounts = dfcounts.sort_values(['Gene', 'Count', 'HLA'], ascending=[True, False, True])
+
+# Select top 2 HLA alleles for each gene (A, B, C)
+final_hlas = []
+
+for gene in dfcounts["Gene"].unique():
+    # Get top 2 alleles for this gene
+    dff = dfcounts[dfcounts["Gene"] == gene][:2]
+    hla_list = dff["HLA"].values.tolist()
+
+    # If only one allele is found, duplicate it
+    if len(hla_list) == 1:
+        hla_list.append(hla_list[0])
+    final_hlas.extend(hla_list)
+
+# Create final HLA string and write to file
+hlastring = " ".join(final_hlas)
+with open("~{outputFilePrefix}.hlastring.txt", "w") as hlaout:
     hlaout.write(hlastring)
-  hlaout.close()
-  CODE
-  >>>
+
+CODE
+>>>
+
+
+
 
   runtime {
     memory:  "~{jobMemory} GB"
