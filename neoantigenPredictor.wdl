@@ -201,7 +201,7 @@ task extractHLAs{
   
   command<<<
   
-  python3 $NEOPIPE_ROOT/bin/extractHLAs.py \
+  python3 /.mounts/labs/gsiprojects/gsi/gsiusers/mrojaspena/repositories/github_repos/neoantigenPrediction/scripts/extractHLAs.py \
     "~{sep=" " hlafiles}" \
     "~{sep=" " hlacallers}" \
     ~{outputFilePrefix}.hlastring.txt
@@ -239,7 +239,7 @@ task format2pcgr{
   }
   command <<<
   
-  python3 $NEOPIPE_ROOT/bin/format2pcgr.py \
+  format2pcgr \
         -i ~{vcfin} \
         -o temp.ensemble.somatic.vt.annot.2callers.vcf.gz \
         -f 2 \

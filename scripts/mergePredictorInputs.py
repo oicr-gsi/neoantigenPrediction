@@ -47,11 +47,11 @@ def merge_predictor_inputs(variants_peptides, variant_deciles, expression_decile
     
     # Defining the column order for the .tsv file
     columns = [
-        'chr', 'pos', 'ref', 'alt', 'ensembl_id', 'rs_id', 'type', 'callers', 
-        'tumor_dp', 'normal_dp', 'tumor_vaf', 'normal_vaf', 'consequence', 'impact', 
-        'gene', 'transcript_id', 'biotype', 'nuc_change', 'aa_change', 'cdna_pos', 
-        'cds_pos', 'protein_pos', 'amino_acids', 'codons', 'wt_peptides', 'mt_peptides', 
-        'vaf', 'vaf_decile', 'abundance_TPM', 'expression_decile', 'variant_in_rna'
+        'chr', 'pos', 'ref', 'alt', 'gene','ensembl_id', 'rs_id', 'type', 'callers', 
+        'tumor_dp', 'normal_dp', 'tumor_vaf', 'normal_vaf', 'wt_peptides', 'mt_peptides', 
+        'vaf', 'vaf_decile', 'abundance_TPM', 'expression_decile', 'variant_in_rna',
+        'transcript_id', 'protein_pos', 'amino_acids', 'consequence', 'impact', 'biotype', 
+        'nuc_change', 'aa_change', 'cdna_pos', 'cds_pos', 'codons'
     ]
     
     # Making sure the columns in the DataFrame match the desired order
