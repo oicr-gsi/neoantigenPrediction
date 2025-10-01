@@ -25,7 +25,7 @@ java -jar cromwell.jar run neoantigenPredictor.wdl --inputs inputs.json
 #### Required workflow parameters:
 Parameter|Value|Description
 ---|---|---
-`HLAFiles`|Array[HLACalls]|an array of HLA files and their associated caller identifiers (t1k, optitype)
+`HLAFiles`|HLACalls|an array of HLA files and their associated caller names (t1k, optitype)
 `DNAVariantCalls`|VariantCalls|the ensemble/combined DNA vcf file, from multiple callers, with the index and the tumourID
 `RNAVariantCalls`|VariantCalls|the RNA seq variant calls from Haplotype Caller
 `RNAAbundance`|File|the expression data in text format

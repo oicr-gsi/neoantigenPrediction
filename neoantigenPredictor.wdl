@@ -27,7 +27,7 @@ workflow neoantigenPredictor {
   }
 
   parameter_meta {
-    HLAFiles : "an array of HLA files and their associated caller identifiers (t1k, optitype)"
+    HLAFiles : "an array of HLA files and their associated caller names (t1k, optitype)"
     DNAVariantCalls : "the ensemble/combined DNA vcf file, from multiple callers, with the index and the tumourID"
     RNAVariantCalls : "the RNA seq variant calls from Haplotype Caller"
     RNAAbundance : "the expression data in text format"
@@ -36,7 +36,7 @@ workflow neoantigenPredictor {
   }
 
   meta {
-    author : "Lawrence Heisler , Monica L. Rojas-Pena"
+    author : "Lawrence Heisler, Monica L. Rojas-Pena"
     email : "lheisler@oicr.on.ca, mrojaspena@oicr.on.ca"
     description : "A workflow that will use variant calls, expression data and HLA typing to predict Neoantigens"
     dependencies : [ 
@@ -89,13 +89,13 @@ workflow neoantigenPredictor {
     File NeoAntigenNmers = mergePredictorOutputs.tsv
   }
   ### parse the HLA outputs to construct a string of HLAs
-  scatter(h in HLAFiles) {
-    File one_file = h.file
-    String one_caller = h.caller
+  scatter(h in HLAFiles){
+    File h_file = h.file
+    String h_caller = h.caller
   }
 
-  Array[File] hlafiles = one_file
-  Array[String] hlacallers = one_caller
+  Array[File] hlafiles = h_file
+  Array[String] hlacallers = h_caller
 
   call extractHLAs {
     input:
@@ -192,10 +192,10 @@ task extractHLAs{
   
   parameter_meta {
       hlafiles: "A comma separated list of hla outputs from supported tools (t1k, optitype)"
-	  hlacallers: "A comma separated list of hla caller names outputs from supported tools (t1k, optitype), isn the same order as hlafiles"
+	    hlacallers: "A comma separated list of hla caller names outputs from supported tools (t1k, optitype), isn the same order as hlafiles"
       outputFilePrefix: "The prefix to use for the output files"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
+	    modules: "Names and versions of modules"
+	    jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
   }
   
@@ -225,16 +225,16 @@ task format2pcgr{
     File vcfin
     String tumorId
     String outputFilePrefix
-    String modules = "neopipe/1.1.0 bcftools/1.9"
-    Int jobMemory = 6
+    String modules = "neopipe/1.0.0 bcftools/1.9"
+    Int jobMemory = 48
     Int timeout = 20
   }
   parameter_meta {
       vcfin: "dna variant calls in vcf format"
-	  tumorId: "a string to identify the tumour column in the vcf file"
+	    tumorId: "a string to identify the tumour column in the vcf file"
       outputFilePrefix: "The prefix to use for the output files"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
+	    modules: "Names and versions of modules"
+	    jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
   }
   command <<<
@@ -271,15 +271,17 @@ task PCGR{
     File vcfIndex
     String outputFilePrefix
     String modules = "neopipe/1.1.0 pcgr/2.0.3"
+    Int vep_buffer_size = 500
     Int jobMemory = 6
     Int timeout = 20
   }
   parameter_meta {
       vcf: "dna variant calls in PCGR-ready vcf format"
-	  vcfIndex: "the vcf index file"
+	    vcfIndex: "the vcf index file"
       outputFilePrefix: "The prefix to use for the output files"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
+	    modules: "Names and versions of modules"
+	    vep_buffer_size: "Number of variants processes in memory at once"
+      jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
   }
   command <<<
@@ -289,7 +291,7 @@ task PCGR{
   mkdir pcgr
   pcgr --vcf2maf \
     --force_overwrite \
-    --vep_buffer_size 500 \
+    --vep_buffer_size ~{vep_buffer_size} \
     --vep_regulatory \
     --exclude_dbsnp_nonsomatic \
     --exclude_likely_het_germline \
@@ -355,10 +357,10 @@ task vepAnnotate{
 
    parameter_meta {
       vcf: "dnaseq variant data in vcf format"
-	  refFasta: "the genome reference in fasta format"
+	    refFasta: "the genome reference in fasta format"
       outputFilePrefix: "The prefix to use for the output files"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
+	    modules: "Names and versions of modules"
+	    jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
   }
 
@@ -398,10 +400,10 @@ task getPeptides {
 
    parameter_meta {
       vcf: "candidate dna variants in vcf format"
-	  tumorId: "column name for the tumour sample"
+	    tumorId: "column name for the tumour sample"
       outputFilePrefix: "The prefix to use for the output files"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
+	    modules: "Names and versions of modules"
+	    jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
    }  
    
@@ -446,10 +448,10 @@ task formatCalls{
 
   parameter_meta {
       peptides: "peptides generated from the candidate calls"
-	  vcf: "candidate calls in vcf format"
+	    vcf: "candidate calls in vcf format"
       outputFilePrefix: "The prefix to use for the output files"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
+	    modules: "Names and versions of modules"
+	    jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
   }  
 
@@ -484,8 +486,8 @@ task vafDeciles{
   parameter_meta {
       vcf: "dnaseq variant data in vcf format"
       outputFilePrefix: "The prefix to use for the output files"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
+	    modules: "Names and versions of modules"
+	    jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
   }
     
@@ -523,8 +525,8 @@ task ExpressionDeciles{
   parameter_meta {
       tsv: "A tsv file with expression data"
       outputFilePrefix: "The prefix to use for the output files"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
+	    modules: "Names and versions of modules"
+	    jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
   }
   
@@ -559,8 +561,8 @@ task rnaseqVariants{
   parameter_meta {
       vcf: "rnaseq variant data in vcf format"
       outputFilePrefix: "The prefix to use for the output files"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
+	    modules: "Names and versions of modules"
+	    jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
   }
   command<<<
@@ -592,11 +594,11 @@ task mergePredictorInputs{
 
    parameter_meta {
       variants_peptides: "tsv file with candidate variants and associated peptide predictions"
-	  variant_deciles: "vaf deciles for candidate variants"
+	    variant_deciles: "vaf deciles for candidate variants"
       expression_deciles: "expression deciles for expressed sequences "
-	  rnaseq_variants: "rnaseq variants"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
+	    rnaseq_variants: "rnaseq variants"
+	    modules: "Names and versions of modules"
+	    jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
    }
 
@@ -635,9 +637,9 @@ task predict{
 
   parameter_meta {
       xls: "xls file with inputs to sb_neoantigen_predictor"
-	  hlas: "an string with a list of hlas"
-	  modules: "Names and versions of modules"
-	  jobMemory: "Memory allocated for task in GB"
+	    hlas: "an string with a list of hlas"
+	    modules: "Names and versions of modules"
+	    jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
   }
 
@@ -670,9 +672,9 @@ task chunkPredictorInputFile {
    }
   parameter_meta {
       xls: "xls file with inputs to sb_neoantigen_predictor"
-    chunksize: "the number of records to include in each chunk"
-    modules: "Names and versions of modules"
-    jobMemory: "Memory allocated for task in GB"
+      chunksize: "the number of records to include in each chunk"
+      modules: "Names and versions of modules"
+      jobMemory: "Memory allocated for task in GB"
       timeout: "Timeout in hours"
   }
 
