@@ -201,7 +201,7 @@ task extractHLAs{
   
   command<<<
   
-  python3 /.mounts/labs/gsiprojects/gsi/gsiusers/mrojaspena/repositories/github_repos/neoantigenPrediction/scripts/extractHLAs.py \
+  python3 $NEOPIPE_ROOT/bin/extractHLAs.py \
     "~{sep=" " hlafiles}" \
     "~{sep=" " hlacallers}" \
     ~{outputFilePrefix}.hlastring.txt
